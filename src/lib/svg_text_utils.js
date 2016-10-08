@@ -92,7 +92,7 @@ exports.convertToTspans = function(_context, _callback) {
         _context.text('')
             .style({
                 visibility: 'visible',
-                'white-space': 'pre'
+                'white-space': 'pre-line'
             });
 
         result = _context.appendSVG(converted);
