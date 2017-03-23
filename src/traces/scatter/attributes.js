@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -9,11 +9,11 @@
 'use strict';
 
 var colorAttributes = require('../../components/colorscale/color_attributes');
+var errorBarAttrs = require('../../components/errorbars/attributes');
+var colorbarAttrs = require('../../components/colorbar/attributes');
 
 var Drawing = require('../../components/drawing');
-
 var constants = require('./constants');
-
 var extendFlat = require('../../lib/extend').extendFlat;
 
 module.exports = {
@@ -55,6 +55,10 @@ module.exports = {
             'Use with `dy`',
             'where `y0` is the starting coordinate and `dy` the step.'
         ].join(' ')
+    },
+    customdata: {
+        valType: 'data_array',
+        description: 'Assigns extra data to each scatter point DOM element'
     },
     dy: {
         valType: 'number',
@@ -281,6 +285,7 @@ module.exports = {
                 'to pixels.'
             ].join(' ')
         },
+
         showscale: {
             valType: 'boolean',
             role: 'info',
@@ -290,6 +295,8 @@ module.exports = {
                 'Determines whether or not a colorbar is displayed.'
             ].join(' ')
         },
+        colorbar: colorbarAttrs,
+
         line: extendFlat({}, {
             width: {
                 valType: 'number',
@@ -340,6 +347,7 @@ module.exports = {
         },
         description: 'Sets the text font.'
     },
+
     r: {
         valType: 'data_array',
         description: [
@@ -354,9 +362,7 @@ module.exports = {
             'Sets the angular coordinates.'
         ].join('')
     },
-    _nestedModules: {  // nested module coupling
-        'error_y': 'ErrorBars',
-        'error_x': 'ErrorBars',
-        'marker.colorbar': 'Colorbar'
-    }
+
+    error_y: errorBarAttrs,
+    error_x: errorBarAttrs
 };

@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -74,8 +74,9 @@ module.exports = function setPositions(gd, plotinfo) {
         Axes.minDtick(posAxis, boxdv.minDiff, boxdv.vals[0], true);
 
         // set the width of all boxes
-        for(i = 0; i < boxlist.length; ++i) {
-            gd.calcdata[i][0].t.dPos = dPos;
+        for(i = 0; i < boxlist.length; i++) {
+            var boxListIndex = boxlist[i];
+            gd.calcdata[boxListIndex][0].t.dPos = dPos;
         }
 
         // autoscale the x axis - including space for points if they're off the side

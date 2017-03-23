@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -15,7 +15,16 @@ var extendFlat = require('../../lib/extend').extendFlat;
 var scatterLineAttrs = scatterAttrs.line;
 
 module.exports = {
-    _isLinkedToArray: true,
+    _isLinkedToArray: 'shape',
+
+    visible: {
+        valType: 'boolean',
+        role: 'info',
+        dflt: true,
+        description: [
+            'Determines whether or not this shape is visible.'
+        ].join(' ')
+    },
 
     type: {
         valType: 'enumerated',

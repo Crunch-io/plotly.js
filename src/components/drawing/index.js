@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -51,7 +51,7 @@ drawing.translatePoint = function(d, sel, xa, ya) {
     var x = d.xp || xa.c2p(d.x),
         y = d.yp || ya.c2p(d.y);
 
-    if(isNumeric(x) && isNumeric(y)) {
+    if(isNumeric(x) && isNumeric(y) && sel.node()) {
         // for multiline text this works better
         if(sel.node().nodeName === 'text') {
             sel.attr('x', x).attr('y', y);
@@ -75,14 +75,14 @@ drawing.getPx = function(s, styleAttr) {
     return Number(s.style(styleAttr).replace(/px$/, ''));
 };
 
-drawing.crispRound = function(td, lineWidth, dflt) {
+drawing.crispRound = function(gd, lineWidth, dflt) {
     // for lines that disable antialiasing we want to
     // make sure the width is an integer, and at least 1 if it's nonzero
 
     if(!lineWidth || !isNumeric(lineWidth)) return dflt || 0;
 
     // but not for static plots - these don't get antialiased anyway.
-    if(td._context.staticPlot) return lineWidth;
+    if(gd._context.staticPlot) return lineWidth;
 
     if(lineWidth < 1) return 1;
     return Math.round(lineWidth);
@@ -112,6 +112,7 @@ drawing.lineGroupStyle = function(s, lw, lc, ld) {
 };
 
 drawing.dashLine = function(s, dash, lineWidth) {
+    lineWidth = +lineWidth || 0;
     var dlw = Math.max(lineWidth, 3);
 
     if(dash === 'solid') dash = '';
@@ -276,9 +277,8 @@ drawing.singlePointStyle = function(d, sel, trace) {
 
     // allow array marker and marker line colors to be
     // scaled by given max and min to colorscales
-    var markerIn = (trace._input || {}).marker || {},
-        markerScale = drawing.tryColorscale(marker, markerIn, ''),
-        lineScale = drawing.tryColorscale(marker, markerIn, 'line.');
+    var markerScale = drawing.tryColorscale(marker, ''),
+        lineScale = drawing.tryColorscale(marker, 'line');
 
     singlePointStyle(d, sel, trace, markerScale, lineScale, marker, markerLine);
 
@@ -290,48 +290,23 @@ drawing.pointStyle = function(s, trace) {
     // allow array marker and marker line colors to be
     // scaled by given max and min to colorscales
     var marker = trace.marker;
-    var markerIn = (trace._input || {}).marker || {},
-        markerScale = drawing.tryColorscale(marker, markerIn, ''),
-        lineScale = drawing.tryColorscale(marker, markerIn, 'line.');
+    var markerScale = drawing.tryColorscale(marker, ''),
+        lineScale = drawing.tryColorscale(marker, 'line');
 
     s.each(function(d) {
         drawing.singlePointStyle(d, d3.select(this), trace, markerScale, lineScale);
     });
 };
 
-// for a given color attribute (ie m -> mc = marker.color) look to see if we
-// have a colorscale for it (ie mscl, mcmin, mcmax) - if we do, translate
-// all numeric color values according to that scale
-drawing.tryColorscale = function(cont, contIn, prefix) {
-    var colorArray = Lib.nestedProperty(cont, prefix + 'color').get(),
-        scl = Lib.nestedProperty(cont, prefix + 'colorscale').get(),
-        auto = Lib.nestedProperty(cont, prefix + 'cauto').get(),
-        minProp = Lib.nestedProperty(cont, prefix + 'cmin'),
-        maxProp = Lib.nestedProperty(cont, prefix + 'cmax'),
-        min = minProp.get(),
-        max = maxProp.get();
+drawing.tryColorscale = function(marker, prefix) {
+    var cont = prefix ? Lib.nestedProperty(marker, prefix).get() : marker,
+        scl = cont.colorscale,
+        colorArray = cont.color;
 
-    // TODO handle this in Colorscale.calc
     if(scl && Array.isArray(colorArray)) {
-        if(auto || !isNumeric(min) || !isNumeric(max)) {
-            min = Infinity;
-            max = -Infinity;
-            colorArray.forEach(function(color) {
-                if(isNumeric(color)) {
-                    if(min > color) min = +color;
-                    if(max < color) max = +color;
-                }
-            });
-            if(min > max) {
-                min = 0;
-                max = 1;
-            }
-            minProp.set(min);
-            maxProp.set(max);
-            Lib.nestedProperty(contIn, prefix + 'cmin').set(min);
-            Lib.nestedProperty(contIn, prefix + 'cmax').set(max);
-        }
-        return Colorscale.makeScaleFunction(scl, min, max);
+        return Colorscale.makeColorScaleFunc(
+            Colorscale.extractScale(scl, cont.cmin, cont.cmax)
+        );
     }
     else return Lib.identity;
 };
@@ -594,6 +569,112 @@ drawing.setClipUrl = function(s, localId) {
     var url = '#' + localId,
         base = d3.select('base');
 
-    if(base.size() && base.attr('href')) url = window.location.href + url;
+    // add id to location href w/o hashes if any)
+    if(base.size() && base.attr('href')) {
+        url = window.location.href.split('#')[0] + url;
+    }
+
     s.attr('clip-path', 'url(' + url + ')');
+};
+
+drawing.getTranslate = function(element) {
+    // Note the separator [^\d] between x and y in this regex
+    // We generally use ',' but IE will convert it to ' '
+    var re = /.*\btranslate\((-?\d*\.?\d*)[^-\d]*(-?\d*\.?\d*)[^\d].*/,
+        getter = element.attr ? 'attr' : 'getAttribute',
+        transform = element[getter]('transform') || '';
+
+    var translate = transform.replace(re, function(match, p1, p2) {
+        return [p1, p2].join(' ');
+    })
+    .split(' ');
+
+    return {
+        x: +translate[0] || 0,
+        y: +translate[1] || 0
+    };
+};
+
+drawing.setTranslate = function(element, x, y) {
+
+    var re = /(\btranslate\(.*?\);?)/,
+        getter = element.attr ? 'attr' : 'getAttribute',
+        setter = element.attr ? 'attr' : 'setAttribute',
+        transform = element[getter]('transform') || '';
+
+    x = x || 0;
+    y = y || 0;
+
+    transform = transform.replace(re, '').trim();
+    transform += ' translate(' + x + ', ' + y + ')';
+    transform = transform.trim();
+
+    element[setter]('transform', transform);
+
+    return transform;
+};
+
+drawing.getScale = function(element) {
+
+    var re = /.*\bscale\((\d*\.?\d*)[^\d]*(\d*\.?\d*)[^\d].*/,
+        getter = element.attr ? 'attr' : 'getAttribute',
+        transform = element[getter]('transform') || '';
+
+    var translate = transform.replace(re, function(match, p1, p2) {
+        return [p1, p2].join(' ');
+    })
+    .split(' ');
+
+    return {
+        x: +translate[0] || 1,
+        y: +translate[1] || 1
+    };
+};
+
+drawing.setScale = function(element, x, y) {
+
+    var re = /(\bscale\(.*?\);?)/,
+        getter = element.attr ? 'attr' : 'getAttribute',
+        setter = element.attr ? 'attr' : 'setAttribute',
+        transform = element[getter]('transform') || '';
+
+    x = x || 1;
+    y = y || 1;
+
+    transform = transform.replace(re, '').trim();
+    transform += ' scale(' + x + ', ' + y + ')';
+    transform = transform.trim();
+
+    element[setter]('transform', transform);
+
+    return transform;
+};
+
+drawing.setPointGroupScale = function(selection, x, y) {
+    var t, scale, re;
+
+    x = x || 1;
+    y = y || 1;
+
+    if(x === 1 && y === 1) {
+        scale = '';
+    } else {
+        // The same scale transform for every point:
+        scale = ' scale(' + x + ',' + y + ')';
+    }
+
+    // A regex to strip any existing scale:
+    re = /\s*sc.*/;
+
+    selection.each(function() {
+        // Get the transform:
+        t = (this.getAttribute('transform') || '').replace(re, '');
+        t += scale;
+        t = t.trim();
+
+        // Append the scale transform
+        this.setAttribute('transform', t);
+    });
+
+    return scale;
 };

@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -52,7 +52,7 @@ function toImage(gd, opts) {
 
         // first clone the GD so we can operate in a clean environment
         var clone = clonePlot(gd, {format: 'png', height: opts.height, width: opts.width});
-        var clonedGd = clone.td;
+        var clonedGd = clone.gd;
 
         // put the cloned div somewhere off screen before attaching to DOM
         clonedGd.style.position = 'absolute';

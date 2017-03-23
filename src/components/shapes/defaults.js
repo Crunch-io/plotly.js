@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -9,17 +9,15 @@
 
 'use strict';
 
+var handleArrayContainerDefaults = require('../../plots/array_container_defaults');
 var handleShapeDefaults = require('./shape_defaults');
 
 
 module.exports = function supplyLayoutDefaults(layoutIn, layoutOut) {
-    var containerIn = layoutIn.shapes || [],
-        containerOut = layoutOut.shapes = [];
+    var opts = {
+        name: 'shapes',
+        handleItemDefaults: handleShapeDefaults
+    };
 
-    for(var i = 0; i < containerIn.length; i++) {
-        var shapeIn = containerIn[i] || {},
-            shapeOut = handleShapeDefaults(shapeIn, layoutOut);
-
-        containerOut.push(shapeOut);
-    }
+    handleArrayContainerDefaults(layoutIn, layoutOut, opts);
 };

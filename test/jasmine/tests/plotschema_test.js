@@ -1,4 +1,5 @@
 var Plotly = require('@lib/index');
+
 var Lib = require('@src/lib');
 
 describe('plot schema', function() {
@@ -38,7 +39,7 @@ describe('plot schema', function() {
         assertPlotSchema(
             function(attr) {
                 if(isValObject(attr)) {
-                    expect(ROLES.indexOf(attr.role) !== -1).toBe(true);
+                    expect(ROLES.indexOf(attr.role) !== -1).toBe(true, attr);
                 }
             }
         );
@@ -88,7 +89,7 @@ describe('plot schema', function() {
     it('all subplot objects should contain _isSubplotObj', function() {
         var IS_SUBPLOT_OBJ = '_isSubplotObj',
             astrs = ['xaxis', 'yaxis', 'scene', 'geo', 'ternary', 'mapbox'],
-            list = [];
+            cnt = 0;
 
         // check if the subplot objects have '_isSubplotObj'
         astrs.forEach(function(astr) {
@@ -103,16 +104,22 @@ describe('plot schema', function() {
         // check that no other object has '_isSubplotObj'
         assertPlotSchema(
             function(attr, attrName) {
-                if(attr[IS_SUBPLOT_OBJ] === true) list.push(attrName);
+                if(attr[IS_SUBPLOT_OBJ] === true) {
+                    expect(astrs.indexOf(attrName)).not.toEqual(-1);
+                    cnt++;
+                }
             }
         );
-        expect(list).toEqual(astrs);
+
+        expect(cnt).toEqual(astrs.length);
     });
 
     it('should convert _isLinkedToArray attributes to items object', function() {
         var astrs = [
             'annotations', 'shapes', 'images',
-            'xaxis.rangeselector.buttons', 'yaxis.rangeselector.buttons',
+            'xaxis.rangeselector.buttons',
+            'updatemenus',
+            'sliders',
             'mapbox.layers'
         ];
 
@@ -176,8 +183,37 @@ describe('plot schema', function() {
         var valObjects = plotSchema.transforms.filter.attributes,
             attrNames = Object.keys(valObjects);
 
-        ['operation', 'value', 'filtersrc'].forEach(function(k) {
+        ['operation', 'value', 'target'].forEach(function(k) {
             expect(attrNames).toContain(k);
         });
+    });
+
+    it('should work with registered components', function() {
+        expect(plotSchema.traces.scatter.attributes.xcalendar.valType).toEqual('enumerated');
+        expect(plotSchema.traces.scatter3d.attributes.zcalendar.valType).toEqual('enumerated');
+
+        expect(plotSchema.layout.layoutAttributes.calendar.valType).toEqual('enumerated');
+        expect(plotSchema.layout.layoutAttributes.xaxis.calendar.valType).toEqual('enumerated');
+        expect(plotSchema.layout.layoutAttributes.scene.xaxis.calendar.valType).toEqual('enumerated');
+
+        expect(plotSchema.transforms.filter.attributes.valuecalendar.valType).toEqual('enumerated');
+        expect(plotSchema.transforms.filter.attributes.targetcalendar.valType).toEqual('enumerated');
+    });
+
+    it('should list correct defs', function() {
+        expect(plotSchema.defs.valObjects).toBeDefined();
+
+        expect(plotSchema.defs.metaKeys)
+            .toEqual([
+                '_isSubplotObj', '_isLinkedToArray', '_arrayAttrRegexps',
+                '_deprecated', 'description', 'role'
+            ]);
+    });
+
+    it('should list the correct frame attributes', function() {
+        expect(plotSchema.frames).toBeDefined();
+        expect(plotSchema.frames.role).toEqual('object');
+        expect(plotSchema.frames.items.frames_entry).toBeDefined();
+        expect(plotSchema.frames.items.frames_entry.role).toEqual('object');
     });
 });

@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -9,24 +9,27 @@
 
 'use strict';
 
-var tinycolor = require('tinycolor2');
 var isNumeric = require('fast-isnumeric');
+var rgba = require('color-rgba');
 
-var makeScaleFunction = require('../components/colorscale/make_scale_function');
+var Colorscale = require('../components/colorscale');
 var colorDflt = require('../components/color/attributes').defaultLine;
 
-var str2RgbaArray = require('./str2rgbarray');
-
+var colorDfltRgba = rgba(colorDflt);
 var opacityDflt = 1;
 
 function calculateColor(colorIn, opacityIn) {
-    var colorOut = str2RgbaArray(colorIn);
+    var colorOut = colorIn;
     colorOut[3] *= opacityIn;
     return colorOut;
 }
 
 function validateColor(colorIn) {
-    return tinycolor(colorIn).isValid() ? colorIn : colorDflt;
+    if(isNumeric(colorIn)) return colorDfltRgba;
+
+    var colorOut = rgba(colorIn);
+
+    return colorOut.length ? colorOut : colorDfltRgba;
 }
 
 function validateOpacity(opacityIn) {
@@ -42,15 +45,21 @@ function formatColor(containerIn, opacityIn, len) {
     var sclFunc, getColor, getOpacity, colori, opacityi;
 
     if(containerIn.colorscale !== undefined) {
-        sclFunc = makeScaleFunction(
-            containerIn.colorscale, containerIn.cmin, containerIn.cmax
+        sclFunc = Colorscale.makeColorScaleFunc(
+            Colorscale.extractScale(
+                containerIn.colorscale,
+                containerIn.cmin,
+                containerIn.cmax
+            )
         );
     }
-    else sclFunc = validateColor;
+    else {
+        sclFunc = validateColor;
+    }
 
     if(isArrayColorIn) {
         getColor = function(c, i) {
-            return c[i] === undefined ? colorDflt : sclFunc(c[i]);
+            return c[i] === undefined ? colorDfltRgba : rgba(sclFunc(c[i]));
         };
     }
     else getColor = validateColor;
@@ -69,7 +78,7 @@ function formatColor(containerIn, opacityIn, len) {
             colorOut[i] = calculateColor(colori, opacityi);
         }
     }
-    else colorOut = calculateColor(colorIn, opacityIn);
+    else colorOut = calculateColor(rgba(colorIn), opacityIn);
 
     return colorOut;
 }

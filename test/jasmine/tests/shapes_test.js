@@ -1,15 +1,160 @@
+var Shapes = require('@src/components/shapes');
 var helpers = require('@src/components/shapes/helpers');
 var constants = require('@src/components/shapes/constants');
 
 var Plotly = require('@lib/index');
 var PlotlyInternal = require('@src/plotly');
 var Lib = require('@src/lib');
+
+var Plots = PlotlyInternal.Plots;
 var Axes = PlotlyInternal.Axes;
 
 var d3 = require('d3');
+var customMatchers = require('../assets/custom_matchers');
 var createGraphDiv = require('../assets/create_graph_div');
 var destroyGraphDiv = require('../assets/destroy_graph_div');
+var failTest = require('../assets/fail_test');
+var drag = require('../assets/drag');
 
+
+describe('Test shapes defaults:', function() {
+    'use strict';
+
+    beforeAll(function() {
+        jasmine.addMatchers(customMatchers);
+    });
+
+    function _supply(layoutIn, layoutOut) {
+        layoutOut = layoutOut || {};
+        layoutOut._has = Plots._hasPlotType.bind(layoutOut);
+
+        Shapes.supplyLayoutDefaults(layoutIn, layoutOut);
+
+        return layoutOut.shapes;
+    }
+
+    it('should skip non-array containers', function() {
+        [null, undefined, {}, 'str', 0, false, true].forEach(function(cont) {
+            var msg = '- ' + JSON.stringify(cont);
+            var layoutIn = { shapes: cont };
+            var out = _supply(layoutIn);
+
+            expect(layoutIn.shapes).toBe(cont, msg);
+            expect(out).toEqual([], msg);
+        });
+    });
+
+    it('should make non-object item visible: false', function() {
+        var shapes = [null, undefined, [], 'str', 0, false, true];
+        var layoutIn = { shapes: shapes };
+        var out = _supply(layoutIn);
+
+        expect(layoutIn.shapes).toEqual(shapes);
+
+        out.forEach(function(item, i) {
+            expect(item).toEqual({
+                visible: false,
+                _input: {},
+                _index: i
+            });
+        });
+    });
+
+    it('should provide the right defaults on all axis types', function() {
+        var fullLayout = {
+            xaxis: {type: 'linear', range: [0, 20]},
+            yaxis: {type: 'log', range: [1, 5]},
+            xaxis2: {type: 'date', range: ['2006-06-05', '2006-06-09']},
+            yaxis2: {type: 'category', range: [-0.5, 7.5]}
+        };
+
+        Axes.setConvert(fullLayout.xaxis);
+        Axes.setConvert(fullLayout.yaxis);
+        Axes.setConvert(fullLayout.xaxis2);
+        Axes.setConvert(fullLayout.yaxis2);
+
+        var shape1In = {type: 'rect'},
+            shape2In = {type: 'circle', xref: 'x2', yref: 'y2'};
+
+        var layoutIn = {
+            shapes: [shape1In, shape2In]
+        };
+
+        _supply(layoutIn, fullLayout);
+
+        var shape1Out = fullLayout.shapes[0],
+            shape2Out = fullLayout.shapes[1];
+
+        // default positions are 1/4 and 3/4 of the full range of that axis
+        expect(shape1Out.x0).toBe(5);
+        expect(shape1Out.x1).toBe(15);
+
+        // shapes use data values for log axes (like everyone will in V2.0)
+        expect(shape1Out.y0).toBeWithin(100, 0.001);
+        expect(shape1Out.y1).toBeWithin(10000, 0.001);
+
+        // date strings also interpolate
+        expect(shape2Out.x0).toBe('2006-06-06');
+        expect(shape2Out.x1).toBe('2006-06-08');
+
+        // categories must use serial numbers to get continuous values
+        expect(shape2Out.y0).toBeWithin(1.5, 0.001);
+        expect(shape2Out.y1).toBeWithin(5.5, 0.001);
+    });
+});
+
+function countShapesInLowerLayer(gd) {
+    return gd._fullLayout.shapes.filter(isShapeInLowerLayer).length;
+}
+
+function countShapesInUpperLayer(gd) {
+    return gd._fullLayout.shapes.filter(isShapeInUpperLayer).length;
+}
+
+function countShapesInSubplots(gd) {
+    return gd._fullLayout.shapes.filter(isShapeInSubplot).length;
+}
+
+function isShapeInUpperLayer(shape) {
+    return shape.layer !== 'below';
+}
+
+function isShapeInLowerLayer(shape) {
+    return (shape.xref === 'paper' && shape.yref === 'paper') &&
+        !isShapeInUpperLayer(shape);
+}
+
+function isShapeInSubplot(shape) {
+    return !isShapeInUpperLayer(shape) && !isShapeInLowerLayer(shape);
+}
+
+function countShapeLowerLayerNodes() {
+    return d3.selectAll('.layer-below > .shapelayer').size();
+}
+
+function countShapeUpperLayerNodes() {
+    return d3.selectAll('.layer-above > .shapelayer').size();
+}
+
+function countShapeLayerNodesInSubplots() {
+    return d3.selectAll('.layer-subplot').size();
+}
+
+function countSubplots(gd) {
+    return Object.keys(gd._fullLayout._plots || {}).length;
+}
+
+function countShapePathsInLowerLayer() {
+    return d3.selectAll('.layer-below > .shapelayer > path').size();
+}
+
+function countShapePathsInUpperLayer() {
+    return d3.selectAll('.layer-above > .shapelayer > path').size();
+}
+
+function countShapePathsInSubplots() {
+    return d3.selectAll('.layer-subplot > .shapelayer > path').size();
+}
 
 describe('Test shapes:', function() {
     'use strict';
@@ -28,59 +173,6 @@ describe('Test shapes:', function() {
 
     afterEach(destroyGraphDiv);
 
-    function countShapesInLowerLayer() {
-        return gd._fullLayout.shapes.filter(isShapeInLowerLayer).length;
-    }
-
-    function countShapesInUpperLayer() {
-        return gd._fullLayout.shapes.filter(isShapeInUpperLayer).length;
-    }
-
-    function countShapesInSubplots() {
-        return gd._fullLayout.shapes.filter(isShapeInSubplot).length;
-    }
-
-    function isShapeInUpperLayer(shape) {
-        return shape.layer !== 'below';
-    }
-
-    function isShapeInLowerLayer(shape) {
-        return (shape.xref === 'paper' && shape.yref === 'paper') &&
-            !isShapeInUpperLayer(shape);
-    }
-
-    function isShapeInSubplot(shape) {
-        return !isShapeInUpperLayer(shape) && !isShapeInLowerLayer(shape);
-    }
-
-    function countShapeLowerLayerNodes() {
-        return d3.selectAll('.layer-below > .shapelayer').size();
-    }
-
-    function countShapeUpperLayerNodes() {
-        return d3.selectAll('.layer-above > .shapelayer').size();
-    }
-
-    function countShapeLayerNodesInSubplots() {
-        return d3.selectAll('.layer-subplot').size();
-    }
-
-    function countSubplots(gd) {
-        return Object.keys(gd._fullLayout._plots || {}).length;
-    }
-
-    function countShapePathsInLowerLayer() {
-        return d3.selectAll('.layer-below > .shapelayer > path').size();
-    }
-
-    function countShapePathsInUpperLayer() {
-        return d3.selectAll('.layer-above > .shapelayer > path').size();
-    }
-
-    function countShapePathsInSubplots() {
-        return d3.selectAll('.layer-subplot > .shapelayer > path').size();
-    }
-
     describe('*shapeLowerLayer*', function() {
         it('has one node', function() {
             expect(countShapeLowerLayerNodes()).toEqual(1);
@@ -88,15 +180,17 @@ describe('Test shapes:', function() {
 
         it('has as many *path* nodes as shapes in the lower layer', function() {
             expect(countShapePathsInLowerLayer())
-                .toEqual(countShapesInLowerLayer());
+                .toEqual(countShapesInLowerLayer(gd));
         });
 
         it('should be able to get relayout', function(done) {
             Plotly.relayout(gd, {height: 200, width: 400}).then(function() {
                 expect(countShapeLowerLayerNodes()).toEqual(1);
                 expect(countShapePathsInLowerLayer())
-                    .toEqual(countShapesInLowerLayer());
-            }).then(done);
+                    .toEqual(countShapesInLowerLayer(gd));
+            })
+            .catch(failTest)
+            .then(done);
         });
     });
 
@@ -107,15 +201,17 @@ describe('Test shapes:', function() {
 
         it('has as many *path* nodes as shapes in the upper layer', function() {
             expect(countShapePathsInUpperLayer())
-                .toEqual(countShapesInUpperLayer());
+                .toEqual(countShapesInUpperLayer(gd));
         });
 
         it('should be able to get relayout', function(done) {
             Plotly.relayout(gd, {height: 200, width: 400}).then(function() {
                 expect(countShapeUpperLayerNodes()).toEqual(1);
                 expect(countShapePathsInUpperLayer())
-                    .toEqual(countShapesInUpperLayer());
-            }).then(done);
+                    .toEqual(countShapesInUpperLayer(gd));
+            })
+            .catch(failTest)
+            .then(done);
         });
     });
 
@@ -127,7 +223,7 @@ describe('Test shapes:', function() {
 
         it('has as many *path* nodes as shapes in the subplot', function() {
             expect(countShapePathsInSubplots())
-                .toEqual(countShapesInSubplots());
+                .toEqual(countShapesInSubplots(gd));
         });
 
         it('should be able to get relayout', function(done) {
@@ -135,8 +231,10 @@ describe('Test shapes:', function() {
                 expect(countShapeLayerNodesInSubplots())
                     .toEqual(countSubplots(gd));
                 expect(countShapePathsInSubplots())
-                    .toEqual(countShapesInSubplots());
-            }).then(done);
+                    .toEqual(countShapesInSubplots(gd));
+            })
+            .catch(failTest)
+            .then(done);
         });
     });
 
@@ -171,7 +269,17 @@ describe('Test shapes:', function() {
                 expect(countShapePathsInUpperLayer()).toEqual(pathCount + 1);
                 expect(getLastShape(gd)).toEqual(shape);
                 expect(countShapes(gd)).toEqual(index + 1);
-            }).then(done);
+
+                // add a shape not at the end of the array
+                return Plotly.relayout(gd, 'shapes[0]', getRandomShape());
+            })
+            .then(function() {
+                expect(countShapePathsInUpperLayer()).toEqual(pathCount + 2);
+                expect(getLastShape(gd)).toEqual(shape);
+                expect(countShapes(gd)).toEqual(index + 2);
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('should be able to remove a shape', function(done) {
@@ -183,20 +291,68 @@ describe('Test shapes:', function() {
                 expect(countShapePathsInUpperLayer()).toEqual(pathCount + 1);
                 expect(getLastShape(gd)).toEqual(shape);
                 expect(countShapes(gd)).toEqual(index + 1);
-            }).then(function() {
-                Plotly.relayout(gd, 'shapes[' + index + ']', 'remove');
-            }).then(function() {
+
+                return Plotly.relayout(gd, 'shapes[' + index + ']', 'remove');
+            })
+            .then(function() {
                 expect(countShapePathsInUpperLayer()).toEqual(pathCount);
                 expect(countShapes(gd)).toEqual(index);
-            }).then(done);
+
+                return Plotly.relayout(gd, 'shapes[2].visible', false);
+            })
+            .then(function() {
+                expect(countShapePathsInUpperLayer()).toEqual(pathCount - 1);
+                expect(countShapes(gd)).toEqual(index);
+
+                return Plotly.relayout(gd, 'shapes[1]', null);
+            })
+            .then(function() {
+                expect(countShapePathsInUpperLayer()).toEqual(pathCount - 2);
+                expect(countShapes(gd)).toEqual(index - 1);
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('should be able to remove all shapes', function(done) {
-            Plotly.relayout(gd, { shapes: [] }).then(function() {
+            Plotly.relayout(gd, { shapes: null }).then(function() {
                 expect(countShapePathsInUpperLayer()).toEqual(0);
                 expect(countShapePathsInLowerLayer()).toEqual(0);
                 expect(countShapePathsInSubplots()).toEqual(0);
-            }).then(done);
+            })
+            .then(function() {
+                return Plotly.relayout(gd, {'shapes[0]': getRandomShape()});
+            })
+            .then(function() {
+                expect(countShapePathsInUpperLayer()).toEqual(1);
+                expect(countShapePathsInLowerLayer()).toEqual(0);
+                expect(countShapePathsInSubplots()).toEqual(0);
+                expect(gd.layout.shapes.length).toBe(1);
+
+                return Plotly.relayout(gd, {'shapes[0]': null});
+            })
+            .then(function() {
+                expect(countShapePathsInUpperLayer()).toEqual(0);
+                expect(countShapePathsInLowerLayer()).toEqual(0);
+                expect(countShapePathsInSubplots()).toEqual(0);
+                expect(gd.layout.shapes).toBeUndefined();
+            })
+            .catch(failTest)
+            .then(done);
+        });
+
+        it('can replace the shapes array', function(done) {
+            Plotly.relayout(gd, { shapes: [
+                getRandomShape(),
+                getRandomShape()
+            ]}).then(function() {
+                expect(countShapePathsInUpperLayer()).toEqual(2);
+                expect(countShapePathsInLowerLayer()).toEqual(0);
+                expect(countShapePathsInSubplots()).toEqual(0);
+                expect(gd.layout.shapes.length).toBe(2);
+            })
+            .catch(failTest)
+            .then(done);
         });
 
         it('should be able to update a shape layer', function(done) {
@@ -236,8 +392,182 @@ describe('Test shapes:', function() {
                     .toEqual(shapesInUpperLayer + 1);
                 expect(getLastShape(gd)).toEqual(shape);
                 expect(countShapes(gd)).toEqual(index + 1);
-            }).then(done);
+            })
+            .catch(failTest)
+            .then(done);
         });
+    });
+});
+
+describe('shapes axis reference changes', function() {
+    'use strict';
+
+    var gd;
+
+    beforeEach(function(done) {
+        gd = createGraphDiv();
+
+        Plotly.plot(gd, [
+            {y: [1, 2, 3]},
+            {y: [1, 2, 3], yaxis: 'y2'}
+        ], {
+            yaxis: {domain: [0, 0.4]},
+            yaxis2: {domain: [0.6, 1]},
+            shapes: [{
+                xref: 'x', yref: 'paper', type: 'rect',
+                x0: 0.8, x1: 1.2, y0: 0, y1: 1,
+                fillcolor: '#eee', layer: 'below'
+            }]
+        }).then(done);
+    });
+
+    afterEach(destroyGraphDiv);
+
+    function getShape(index) {
+        var s = d3.selectAll('path[data-index="' + index + '"]');
+        expect(s.size()).toBe(1);
+        return s;
+    }
+
+    it('draws the right number of objects and updates clip-path correctly', function(done) {
+
+        expect(getShape(0).attr('clip-path') || '').toMatch(/x\)$/);
+
+        Plotly.relayout(gd, {
+            'shapes[0].xref': 'paper',
+            'shapes[0].x0': 0.2,
+            'shapes[0].x1': 0.6
+        })
+        .then(function() {
+            expect(getShape(0).attr('clip-path')).toBe(null);
+
+            return Plotly.relayout(gd, {
+                'shapes[0].yref': 'y2',
+                'shapes[0].y0': 1.8,
+                'shapes[0].y1': 2.2,
+            });
+        })
+        .then(function() {
+            expect(getShape(0).attr('clip-path') || '').toMatch(/^[^x]+y2\)$/);
+
+            return Plotly.relayout(gd, {
+                'shapes[0].xref': 'x',
+                'shapes[0].x0': 1.5,
+                'shapes[0].x1': 20
+            });
+        })
+        .then(function() {
+            expect(getShape(0).attr('clip-path') || '').toMatch(/xy2\)$/);
+        })
+        .catch(failTest)
+        .then(done);
+    });
+});
+
+describe('shapes edge cases', function() {
+    'use strict';
+
+    var gd;
+
+    beforeAll(function() {
+        jasmine.addMatchers(customMatchers);
+    });
+
+    beforeEach(function() { gd = createGraphDiv(); });
+
+    afterEach(destroyGraphDiv);
+
+    it('falls back on shapeLowerLayer for below missing subplots', function(done) {
+        Plotly.newPlot(gd, [
+            {x: [1, 3], y: [1, 3]},
+            {x: [1, 3], y: [1, 3], xaxis: 'x2', yaxis: 'y2'}
+        ], {
+            xaxis: {domain: [0, 0.5]},
+            yaxis: {domain: [0, 0.5]},
+            xaxis2: {domain: [0.5, 1], anchor: 'y2'},
+            yaxis2: {domain: [0.5, 1], anchor: 'x2'},
+            shapes: [{
+                x0: 1, x1: 2, y0: 1, y1: 2, type: 'circle',
+                layer: 'below',
+                xref: 'x',
+                yref: 'y2'
+            }, {
+                x0: 1, x1: 2, y0: 1, y1: 2, type: 'circle',
+                layer: 'below',
+                xref: 'x2',
+                yref: 'y'
+            }]
+        }).then(function() {
+            expect(countShapePathsInLowerLayer()).toBe(2);
+            expect(countShapePathsInUpperLayer()).toBe(0);
+            expect(countShapePathsInSubplots()).toBe(0);
+        })
+        .catch(failTest)
+        .then(done);
+    });
+});
+
+describe('shapes autosize', function() {
+    'use strict';
+
+    var gd;
+
+    beforeAll(function() {
+        jasmine.addMatchers(customMatchers);
+    });
+
+    afterEach(destroyGraphDiv);
+
+    it('should adapt to relayout calls', function(done) {
+        gd = createGraphDiv();
+
+        var mock = {
+            data: [{}],
+            layout: {
+                shapes: [{
+                    type: 'line',
+                    x0: 0,
+                    y0: 0,
+                    x1: 1,
+                    y1: 1
+                }, {
+                    type: 'line',
+                    x0: 0,
+                    y0: 0,
+                    x1: 2,
+                    y1: 2
+                }]
+            }
+        };
+
+        function assertRanges(x, y) {
+            var fullLayout = gd._fullLayout;
+            var PREC = 1;
+
+            expect(fullLayout.xaxis.range).toBeCloseToArray(x, PREC, '- xaxis');
+            expect(fullLayout.yaxis.range).toBeCloseToArray(y, PREC, '- yaxis');
+        }
+
+        Plotly.plot(gd, mock).then(function() {
+            assertRanges([0, 2], [0, 2]);
+
+            return Plotly.relayout(gd, { 'shapes[1].visible': false });
+        })
+        .then(function() {
+            assertRanges([0, 1], [0, 1]);
+
+            return Plotly.relayout(gd, { 'shapes[1].visible': true });
+        })
+        .then(function() {
+            assertRanges([0, 2], [0, 2]);
+
+            return Plotly.relayout(gd, { 'shapes[0].x1': 3 });
+        })
+        .then(function() {
+            assertRanges([0, 3], [0, 2]);
+        })
+        .catch(failTest)
+        .then(done);
     });
 });
 
@@ -283,7 +613,9 @@ describe('Test shapes: a plot with shapes and an overlaid axis', function() {
     afterEach(destroyGraphDiv);
 
     it('should not throw an exception', function(done) {
-        Plotly.plot(gd, data, layout).then(done);
+        Plotly.plot(gd, data, layout)
+        .catch(failTest)
+        .then(done);
     });
 });
 
@@ -322,7 +654,7 @@ describe('Test shapes', function() {
             title: 'linked to date and category axes',
             xaxis: {
                 type: 'date',
-                range: ['2000-01-01', (new Date(2000, 1, 2)).getTime()]
+                range: ['2000-01-01', '2000-02-02']
             },
             yaxis: { type: 'category', range: ['a', 'b'] }
         }
@@ -542,7 +874,7 @@ describe('Test shapes', function() {
 
         var initialCoordinates = getShapeCoordinates(layoutShape, x2p, y2p);
 
-        return resize(direction, node, dx, dy).then(function() {
+        return drag(node, dx, dy, direction).then(function() {
             var finalCoordinates = getShapeCoordinates(layoutShape, x2p, y2p);
 
             var keyN, keyS, keyW, keyE;
@@ -609,118 +941,3 @@ describe('Test shapes', function() {
         return coordinates;
     }
 });
-
-var DBLCLICKDELAY = require('@src/plots/cartesian/constants').DBLCLICKDELAY;
-
-function mouseDown(node, x, y) {
-    node.dispatchEvent(new MouseEvent('mousedown', {
-        bubbles: true,
-        clientX: x,
-        clientY: y
-    }));
-}
-
-function mouseMove(node, x, y) {
-    node.dispatchEvent(new MouseEvent('mousemove', {
-        bubbles: true,
-        clientX: x,
-        clientY: y
-    }));
-}
-
-function mouseUp(node, x, y) {
-    node.dispatchEvent(new MouseEvent('mouseup', {
-        bubbles: true,
-        clientX: x,
-        clientY: y
-    }));
-}
-
-function drag(node, dx, dy) {
-    var bbox = node.getBoundingClientRect(),
-        fromX = (bbox.left + bbox.right) / 2,
-        fromY = (bbox.bottom + bbox.top) / 2,
-        toX = fromX + dx,
-        toY = fromY + dy;
-
-    mouseMove(node, fromX, fromY);
-    mouseDown(node, fromX, fromY);
-
-    var promise = waitForDragCover().then(function(dragCoverNode) {
-        mouseMove(dragCoverNode, toX, toY);
-        mouseUp(dragCoverNode, toX, toY);
-        return waitForDragCoverRemoval();
-    });
-
-    return promise;
-}
-
-function resize(direction, node, dx, dy) {
-    var bbox = node.getBoundingClientRect();
-
-    var fromX, fromY, toX, toY;
-
-    if(~direction.indexOf('n')) fromY = bbox.top;
-    else if(~direction.indexOf('s')) fromY = bbox.bottom;
-    else fromY = (bbox.bottom + bbox.top) / 2;
-
-    if(~direction.indexOf('w')) fromX = bbox.left;
-    else if(~direction.indexOf('e')) fromX = bbox.right;
-    else fromX = (bbox.left + bbox.right) / 2;
-
-    toX = fromX + dx;
-    toY = fromY + dy;
-
-    mouseMove(node, fromX, fromY);
-    mouseDown(node, fromX, fromY);
-
-    var promise = waitForDragCover().then(function(dragCoverNode) {
-        mouseMove(dragCoverNode, toX, toY);
-        mouseUp(dragCoverNode, toX, toY);
-        return waitForDragCoverRemoval();
-    });
-
-    return promise;
-}
-
-function waitForDragCover() {
-    return new Promise(function(resolve) {
-        var interval = DBLCLICKDELAY / 4,
-            timeout = 5000;
-
-        var id = setInterval(function() {
-            var dragCoverNode = d3.selectAll('.dragcover').node();
-            if(dragCoverNode) {
-                clearInterval(id);
-                resolve(dragCoverNode);
-            }
-
-            timeout -= interval;
-            if(timeout < 0) {
-                clearInterval(id);
-                throw new Error('waitForDragCover: timeout');
-            }
-        }, interval);
-    });
-}
-
-function waitForDragCoverRemoval() {
-    return new Promise(function(resolve) {
-        var interval = DBLCLICKDELAY / 4,
-            timeout = 5000;
-
-        var id = setInterval(function() {
-            var dragCoverNode = d3.selectAll('.dragcover').node();
-            if(!dragCoverNode) {
-                clearInterval(id);
-                resolve(dragCoverNode);
-            }
-
-            timeout -= interval;
-            if(timeout < 0) {
-                clearInterval(id);
-                throw new Error('waitForDragCoverRemoval: timeout');
-            }
-        }, interval);
-    });
-}

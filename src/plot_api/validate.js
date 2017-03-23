@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -164,7 +164,8 @@ function crawl(objIn, objOut, schema, list, base, path) {
             valOut = objOut[k];
 
         var nestedSchema = getNestedSchema(schema, k),
-            isInfoArray = (nestedSchema || {}).valType === 'info_array';
+            isInfoArray = (nestedSchema || {}).valType === 'info_array',
+            isColorscale = (nestedSchema || {}).valType === 'colorscale';
 
         if(!isInSchema(schema, k)) {
             list.push(format('schema', base, p));
@@ -173,7 +174,8 @@ function crawl(objIn, objOut, schema, list, base, path) {
             crawl(valIn, valOut, nestedSchema, list, base, p);
         }
         else if(nestedSchema.items && !isInfoArray && isArray(valIn)) {
-            var itemName = k.substr(0, k.length - 1),
+            var items = nestedSchema.items,
+                _nestedSchema = items[Object.keys(items)[0]],
                 indexList = [];
 
             var j, _p;
@@ -181,8 +183,7 @@ function crawl(objIn, objOut, schema, list, base, path) {
             // loop over valOut items while keeping track of their
             // corresponding input container index (given by _index)
             for(j = 0; j < valOut.length; j++) {
-                var _nestedSchema = nestedSchema.items[itemName],
-                    _index = valOut[j]._index || j;
+                var _index = valOut[j]._index || j;
 
                 _p = p.slice();
                 _p.push(_index);
@@ -209,7 +210,7 @@ function crawl(objIn, objOut, schema, list, base, path) {
         else if(!isPlainObject(valIn) && isPlainObject(valOut)) {
             list.push(format('object', base, p, valIn));
         }
-        else if(!isArray(valIn) && isArray(valOut) && !isInfoArray) {
+        else if(!isArray(valIn) && isArray(valOut) && !isInfoArray && !isColorscale) {
             list.push(format('array', base, p, valIn));
         }
         else if(!(k in objOut)) {

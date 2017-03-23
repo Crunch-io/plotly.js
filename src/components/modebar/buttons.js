@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -204,9 +204,18 @@ function handleCartesian(gd, ev) {
                     }
                 }
                 else {
-                    var rangeNow = ax.range;
-                    aobj[axName + '.range[0]'] = r0 * rangeNow[0] + r1 * rangeNow[1];
-                    aobj[axName + '.range[1]'] = r0 * rangeNow[1] + r1 * rangeNow[0];
+                    var rangeNow = [
+                        ax.r2l(ax.range[0]),
+                        ax.r2l(ax.range[1]),
+                    ];
+
+                    var rangeNew = [
+                        r0 * rangeNow[0] + r1 * rangeNow[1],
+                        r0 * rangeNow[1] + r1 * rangeNow[0]
+                    ];
+
+                    aobj[axName + '.range[0]'] = ax.l2r(rangeNew[0]);
+                    aobj[axName + '.range[1]'] = ax.l2r(rangeNew[1]);
                 }
             }
         }
@@ -297,20 +306,23 @@ function handleCamera3d(gd, ev) {
     var button = ev.currentTarget,
         attr = button.getAttribute('data-attr'),
         fullLayout = gd._fullLayout,
-        sceneIds = Plots.getSubplotIds(fullLayout, 'gl3d');
+        sceneIds = Plots.getSubplotIds(fullLayout, 'gl3d'),
+        aobj = {};
 
     for(var i = 0; i < sceneIds.length; i++) {
         var sceneId = sceneIds[i],
-            fullSceneLayout = fullLayout[sceneId],
-            scene = fullSceneLayout._scene;
+            key = sceneId + '.camera',
+            scene = fullLayout[sceneId]._scene;
 
-        if(attr === 'resetDefault') scene.setCameraToDefault();
+        if(attr === 'resetDefault') {
+            aobj[key] = null;
+        }
         else if(attr === 'resetLastSave') {
-            // This handler looks in the un-updated fullLayout.scene.camera object to reset the camera
-            // to the last saved position.
-            scene.setCamera(fullSceneLayout.camera);
+            aobj[key] = Lib.extendDeep({}, scene.cameraInitial);
         }
     }
+
+    Plotly.relayout(gd, aobj);
 }
 
 modeBarButtons.hoverClosest3d = {

@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -16,6 +16,9 @@ var lib = module.exports = {};
 lib.nestedProperty = require('./nested_property');
 lib.isPlainObject = require('./is_plain_object');
 lib.isArray = require('./is_array');
+lib.mod = require('./mod');
+lib.toLogRange = require('./to_log_range');
+lib.relinkPrivateKeys = require('./relink_private');
 
 var coerceModule = require('./coerce');
 lib.valObjects = coerceModule.valObjects;
@@ -23,19 +26,21 @@ lib.coerce = coerceModule.coerce;
 lib.coerce2 = coerceModule.coerce2;
 lib.coerceFont = coerceModule.coerceFont;
 lib.validate = coerceModule.validate;
-lib.isValObject = coerceModule.isValObject;
-lib.crawl = coerceModule.crawl;
-lib.findArrayAttributes = coerceModule.findArrayAttributes;
-lib.IS_SUBPLOT_OBJ = coerceModule.IS_SUBPLOT_OBJ;
-lib.IS_LINKED_TO_ARRAY = coerceModule.IS_LINKED_TO_ARRAY;
-lib.DEPRECATED = coerceModule.DEPRECATED;
-lib.UNDERSCORE_ATTRS = coerceModule.UNDERSCORE_ATTRS;
 
 var datesModule = require('./dates');
 lib.dateTime2ms = datesModule.dateTime2ms;
 lib.isDateTime = datesModule.isDateTime;
 lib.ms2DateTime = datesModule.ms2DateTime;
-lib.parseDate = datesModule.parseDate;
+lib.ms2DateTimeLocal = datesModule.ms2DateTimeLocal;
+lib.cleanDate = datesModule.cleanDate;
+lib.isJSDate = datesModule.isJSDate;
+lib.formatDate = datesModule.formatDate;
+lib.incrementMonth = datesModule.incrementMonth;
+lib.dateTick0 = datesModule.dateTick0;
+lib.dfltRange = datesModule.dfltRange;
+lib.findExactDates = datesModule.findExactDates;
+lib.MIN_MS = datesModule.MIN_MS;
+lib.MAX_MS = datesModule.MAX_MS;
 
 var searchModule = require('./search');
 lib.findBin = searchModule.findBin;
@@ -74,6 +79,15 @@ lib.warn = loggersModule.warn;
 lib.error = loggersModule.error;
 
 lib.notifier = require('./notifier');
+
+lib.filterUnique = require('./filter_unique');
+lib.filterVisible = require('./filter_visible');
+lib.pushUnique = require('./push_unique');
+
+lib.cleanNumber = require('./clean_number');
+
+lib.noop = require('./noop');
+lib.identity = require('./identity');
 
 /**
  * swap x and y of the same attribute in container cont
@@ -126,11 +140,21 @@ lib.bBoxIntersect = function(a, b, pad) {
             b.top <= a.bottom + pad);
 };
 
-// minor convenience/performance booster for d3...
-lib.identity = function(d) { return d; };
-
-// minor convenience helper
-lib.noop = function() {};
+/*
+ * simpleMap: alternative to Array.map that only
+ * passes on the element and up to 2 extra args you
+ * provide (but not the array index or the whole array)
+ *
+ * array: the array to map it to
+ * func: the function to apply
+ * x1, x2: optional extra args
+ */
+lib.simpleMap = function(array, func, x1, x2) {
+    var len = array.length,
+        out = new Array(len);
+    for(var i = 0; i < len; i++) out[i] = func(array[i], x1, x2);
+    return out;
+};
 
 // random string generator
 lib.randstr = function randstr(existing, bits, base) {
@@ -250,7 +274,7 @@ lib.smooth = function(arrayIn, FWHM) {
  * as long as its returns are not promises (ie have no .then)
  * includes one argument arg to send to all functions...
  * this is mainly just to prevent us having to make wrapper functions
- * when the only purpose of the wrapper is to reference gd / td
+ * when the only purpose of the wrapper is to reference gd
  * and a final step to be executed at the end
  * TODO: if there's an error and everything is sync,
  * this doesn't happen yet because we want to make sure
@@ -310,23 +334,6 @@ lib.noneOrAll = function(containerIn, containerOut, attrList) {
             containerIn[attrList[i]] = containerOut[attrList[i]];
         }
     }
-};
-
-/**
- * Push array with unique items
- *
- * @param {array} array
- *  array to be filled
- * @param {any} item
- *  item to be or not to be inserted
- * @return {array}
- *  ref to array (now possibly containing one more item)
- *
- */
-lib.pushUnique = function(array, item) {
-    if(item && array.indexOf(item) === -1) array.push(item);
-
-    return array;
 };
 
 lib.mergeArray = function(traceAttr, cd, cdAttr) {
@@ -392,7 +399,9 @@ lib.getPlotDiv = function(el) {
 
 lib.isPlotDiv = function(el) {
     var el3 = d3.select(el);
-    return el3.size() && el3.classed('js-plotly-plot');
+    return el3.node() instanceof HTMLElement &&
+        el3.size() &&
+        el3.classed('js-plotly-plot');
 };
 
 lib.removeElement = function(el) {
@@ -424,109 +433,16 @@ lib.addStyleRule = function(selector, styleString) {
     else lib.warn('addStyleRule failed');
 };
 
-lib.getTranslate = function(element) {
-
-    var re = /.*\btranslate\((\d*\.?\d*)[^\d]*(\d*\.?\d*)[^\d].*/,
-        getter = element.attr ? 'attr' : 'getAttribute',
-        transform = element[getter]('transform') || '';
-
-    var translate = transform.replace(re, function(match, p1, p2) {
-        return [p1, p2].join(' ');
-    })
-    .split(' ');
-
-    return {
-        x: +translate[0] || 0,
-        y: +translate[1] || 0
-    };
-};
-
-lib.setTranslate = function(element, x, y) {
-
-    var re = /(\btranslate\(.*?\);?)/,
-        getter = element.attr ? 'attr' : 'getAttribute',
-        setter = element.attr ? 'attr' : 'setAttribute',
-        transform = element[getter]('transform') || '';
-
-    x = x || 0;
-    y = y || 0;
-
-    transform = transform.replace(re, '').trim();
-    transform += ' translate(' + x + ', ' + y + ')';
-    transform = transform.trim();
-
-    element[setter]('transform', transform);
-
-    return transform;
-};
-
-lib.getScale = function(element) {
-
-    var re = /.*\bscale\((\d*\.?\d*)[^\d]*(\d*\.?\d*)[^\d].*/,
-        getter = element.attr ? 'attr' : 'getAttribute',
-        transform = element[getter]('transform') || '';
-
-    var translate = transform.replace(re, function(match, p1, p2) {
-        return [p1, p2].join(' ');
-    })
-    .split(' ');
-
-    return {
-        x: +translate[0] || 1,
-        y: +translate[1] || 1
-    };
-};
-
-lib.setScale = function(element, x, y) {
-
-    var re = /(\bscale\(.*?\);?)/,
-        getter = element.attr ? 'attr' : 'getAttribute',
-        setter = element.attr ? 'attr' : 'setAttribute',
-        transform = element[getter]('transform') || '';
-
-    x = x || 1;
-    y = y || 1;
-
-    transform = transform.replace(re, '').trim();
-    transform += ' scale(' + x + ', ' + y + ')';
-    transform = transform.trim();
-
-    element[setter]('transform', transform);
-
-    return transform;
-};
-
-lib.setPointGroupScale = function(selection, x, y) {
-    var t, scale, re;
-
-    x = x || 1;
-    y = y || 1;
-
-    if(x === 1 && y === 1) {
-        scale = '';
-    } else {
-        // The same scale transform for every point:
-        scale = ' scale(' + x + ',' + y + ')';
-    }
-
-    // A regex to strip any existing scale:
-    re = /\s*sc.*/;
-
-    selection.each(function() {
-        // Get the transform:
-        t = (this.getAttribute('transform') || '').replace(re, '');
-        t += scale;
-        t = t.trim();
-
-        // Append the scale transform
-        this.setAttribute('transform', t);
-    });
-
-    return scale;
-};
-
 lib.isIE = function() {
     return typeof window.navigator.msSaveBlob !== 'undefined';
+};
+
+/**
+ * Duck typing to recognize a d3 selection, mostly for IE9's benefit
+ * because it doesn't handle instanceof like modern browsers
+ */
+lib.isD3Selection = function(obj) {
+    return obj && (typeof obj.classed === 'function');
 };
 
 
@@ -587,18 +503,36 @@ lib.objectFromPath = function(path, value) {
 /**
  * Iterate through an object in-place, converting dotted properties to objects.
  *
- * @example
- * lib.expandObjectPaths({'nested.test.path': 'value'});
- * // returns { nested: { test: {path: 'value'}}}
+ * Examples:
+ *
+ *   lib.expandObjectPaths({'nested.test.path': 'value'});
+ *     => { nested: { test: {path: 'value'}}}
+ *
+ * It also handles array notation, e.g.:
+ *
+ *   lib.expandObjectPaths({'foo[1].bar': 'value'});
+ *     => { foo: [null, {bar: value}] }
+ *
+ * It handles merges the results when two properties are specified in parallel:
+ *
+ *   lib.expandObjectPaths({'foo[1].bar': 10, 'foo[0].bar': 20});
+ *     => { foo: [{bar: 10}, {bar: 20}] }
+ *
+ * It does NOT, however, merge mulitple mutliply-nested arrays::
+ *
+ *   lib.expandObjectPaths({'marker[1].range[1]': 5, 'marker[1].range[0]': 4})
+ *     => { marker: [null, {range: 4}] }
  */
 
-// Store this to avoid recompiling regex on every prop since this may happen many
-// many times for animations.
-// TODO: Premature optimization? Remove?
-var dottedPropertyRegex = /^([^\.]*)\../;
+// Store this to avoid recompiling regex on *every* prop since this may happen many
+// many times for animations. Could maybe be inside the function. Not sure about
+// scoping vs. recompilation tradeoff, but at least it's not just inlining it into
+// the inner loop.
+var dottedPropertyRegex = /^([^\[\.]+)\.(.+)?/;
+var indexedPropertyRegex = /^([^\.]+)\[([0-9]+)\](\.)?(.+)?/;
 
 lib.expandObjectPaths = function(data) {
-    var match, key, prop, datum;
+    var match, key, prop, datum, idx, dest, trailingPath;
     if(typeof data === 'object' && !Array.isArray(data)) {
         for(key in data) {
             if(data.hasOwnProperty(key)) {
@@ -609,12 +543,47 @@ lib.expandObjectPaths = function(data) {
                     delete data[key];
 
                     data[prop] = lib.extendDeepNoArrays(data[prop] || {}, lib.objectFromPath(key, lib.expandObjectPaths(datum))[prop]);
+                } else if((match = key.match(indexedPropertyRegex))) {
+                    datum = data[key];
+
+                    prop = match[1];
+                    idx = parseInt(match[2]);
+
+                    delete data[key];
+
+                    data[prop] = data[prop] || [];
+
+                    if(match[3] === '.') {
+                        // This is the case where theere are subsequent properties into which
+                        // we must recurse, e.g. transforms[0].value
+                        trailingPath = match[4];
+                        dest = data[prop][idx] = data[prop][idx] || {};
+
+                        // NB: Extend deep no arrays prevents this from working on multiple
+                        // nested properties in the same object, e.g.
+                        //
+                        // {
+                        //   foo[0].bar[1].range
+                        //   foo[0].bar[0].range
+                        // }
+                        //
+                        // In this case, the extendDeepNoArrays will overwrite one array with
+                        // the other, so that both properties *will not* be present in the
+                        // result. Fixing this would require a more intelligent tracking
+                        // of changes and merging than extendDeepNoArrays currently accomplishes.
+                        lib.extendDeepNoArrays(dest, lib.objectFromPath(trailingPath, lib.expandObjectPaths(datum)));
+                    } else {
+                        // This is the case where this property is the end of the line,
+                        // e.g. xaxis.range[0]
+                        data[prop][idx] = lib.expandObjectPaths(datum);
+                    }
                 } else {
                     data[key] = lib.expandObjectPaths(data[key]);
                 }
             }
         }
     }
+
     return data;
 };
 

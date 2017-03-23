@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -8,13 +8,14 @@
 
 'use strict';
 
+var constants = require('./constants');
 
-exports.moduleType = 'component';
+module.exports = {
+    moduleType: 'component',
+    name: constants.name,
 
-exports.name = 'sliders';
+    layoutAttributes: require('./attributes'),
+    supplyLayoutDefaults: require('./defaults'),
 
-exports.layoutAttributes = require('./attributes');
-
-exports.supplyLayoutDefaults = require('./defaults');
-
-exports.draw = require('./draw');
+    draw: require('./draw')
+};

@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -96,11 +96,6 @@ module.exports = function dragBox(gd, plotinfo, x, y, w, h, ns, ew) {
         dragger.onmousedown = null;
         dragger.style.pointerEvents = isMainDrag ? 'all' : 'none';
         return dragger;
-    }
-
-    function forceNumbers(axRange) {
-        axRange[0] = Number(axRange[0]);
-        axRange[1] = Number(axRange[1]);
     }
 
     var dragOptions = {
@@ -213,7 +208,6 @@ module.exports = function dragBox(gd, plotinfo, x, y, w, h, ns, ew) {
             .attr('d', 'M0,0Z');
 
         clearSelect();
-        for(var i = 0; i < allaxes.length; i++) forceNumbers(allaxes[i].range);
     }
 
     function clearSelect() {
@@ -304,16 +298,18 @@ module.exports = function dragBox(gd, plotinfo, x, y, w, h, ns, ew) {
     function zoomAxRanges(axList, r0Fraction, r1Fraction) {
         var i,
             axi,
-            axRange;
+            axRangeLinear0,
+            axRangeLinearSpan;
 
         for(i = 0; i < axList.length; i++) {
             axi = axList[i];
             if(axi.fixedrange) continue;
 
-            axRange = axi.range;
+            axRangeLinear0 = axi._rl[0];
+            axRangeLinearSpan = axi._rl[1] - axRangeLinear0;
             axi.range = [
-                axRange[0] + (axRange[1] - axRange[0]) * r0Fraction,
-                axRange[0] + (axRange[1] - axRange[0]) * r1Fraction
+                axi.l2r(axRangeLinear0 + axRangeLinearSpan * r0Fraction),
+                axi.l2r(axRangeLinear0 + axRangeLinearSpan * r1Fraction)
             ];
         }
     }
@@ -357,21 +353,23 @@ module.exports = function dragBox(gd, plotinfo, x, y, w, h, ns, ew) {
             }
             else if(ew === 'e') hAlign = 'right';
 
-            dragger3
-                .call(svgTextUtils.makeEditable, null, {
-                    immediate: true,
-                    background: fullLayout.paper_bgcolor,
-                    text: String(initialText),
-                    fill: ax.tickfont ? ax.tickfont.color : '#444',
-                    horizontalAlign: hAlign,
-                    verticalAlign: vAlign
-                })
-                .on('edit', function(text) {
-                    var v = ax.type === 'category' ? ax.c2l(text) : ax.d2l(text);
-                    if(v !== undefined) {
-                        Plotly.relayout(gd, attrStr, v);
-                    }
-                });
+            if(gd._context.showAxisRangeEntryBoxes) {
+                dragger3
+                    .call(svgTextUtils.makeEditable, null, {
+                        immediate: true,
+                        background: fullLayout.paper_bgcolor,
+                        text: String(initialText),
+                        fill: ax.tickfont ? ax.tickfont.color : '#444',
+                        horizontalAlign: hAlign,
+                        verticalAlign: vAlign
+                    })
+                    .on('edit', function(text) {
+                        var v = ax.d2r(text);
+                        if(v !== undefined) {
+                            Plotly.relayout(gd, attrStr, v);
+                        }
+                    });
+            }
         }
     }
 
@@ -427,10 +425,11 @@ module.exports = function dragBox(gd, plotinfo, x, y, w, h, ns, ew) {
 
         function zoomWheelOneAxis(ax, centerFraction, zoom) {
             if(ax.fixedrange) return;
-            forceNumbers(ax.range);
-            var axRange = ax.range,
+
+            var axRange = Lib.simpleMap(ax.range, ax.r2l),
                 v0 = axRange[0] + (axRange[1] - axRange[0]) * centerFraction;
-            ax.range = [v0 + (axRange[0] - v0) * zoom, v0 + (axRange[1] - v0) * zoom];
+            function doZoom(v) { return ax.l2r(v0 + (v - v0) * zoom); }
+            ax.range = axRange.map(doZoom);
         }
 
         if(ew) {
@@ -478,7 +477,10 @@ module.exports = function dragBox(gd, plotinfo, x, y, w, h, ns, ew) {
             for(var i = 0; i < axList.length; i++) {
                 var axi = axList[i];
                 if(!axi.fixedrange) {
-                    axi.range = [axi._r[0] - pix / axi._m, axi._r[1] - pix / axi._m];
+                    axi.range = [
+                        axi.l2r(axi._rl[0] - pix / axi._m),
+                        axi.l2r(axi._rl[1] - pix / axi._m)
+                    ];
                 }
             }
         }
@@ -501,23 +503,29 @@ module.exports = function dragBox(gd, plotinfo, x, y, w, h, ns, ew) {
                 1 / (1 / Math.max(d, -0.3) + 3.222));
         }
 
-        // dz: set a new value for one end (0 or 1) of an axis array ax,
+        // dz: set a new value for one end (0 or 1) of an axis array axArray,
         // and return a pixel shift for that end for the viewbox
         // based on pixel drag distance d
         // TODO: this makes (generally non-fatal) errors when you get
         // near floating point limits
-        function dz(ax, end, d) {
+        function dz(axArray, end, d) {
             var otherEnd = 1 - end,
-                movedi = 0;
-            for(var i = 0; i < ax.length; i++) {
-                var axi = ax[i];
+                movedAx,
+                newLinearizedEnd;
+            for(var i = 0; i < axArray.length; i++) {
+                var axi = axArray[i];
                 if(axi.fixedrange) continue;
-                movedi = i;
-                axi.range[end] = axi._r[otherEnd] +
-                    (axi._r[end] - axi._r[otherEnd]) / dZoom(d / axi._length);
+                movedAx = axi;
+                newLinearizedEnd = axi._rl[otherEnd] +
+                    (axi._rl[end] - axi._rl[otherEnd]) / dZoom(d / axi._length);
+                var newEnd = axi.l2r(newLinearizedEnd);
+
+                // if l2r comes back false or undefined, it means we've dragged off
+                // the end of valid ranges - so stop.
+                if(newEnd !== false && newEnd !== undefined) axi.range[end] = newEnd;
             }
-            return ax[movedi]._length * (ax[movedi]._r[end] - ax[movedi].range[end]) /
-                (ax[movedi]._r[end] - ax[movedi]._r[otherEnd]);
+            return movedAx._length * (movedAx._rl[end] - newLinearizedEnd) /
+                (movedAx._rl[end] - movedAx._rl[otherEnd]);
         }
 
         if(xActive === 'w') dx = dz(xa, 0, dx);
@@ -696,18 +704,18 @@ module.exports = function dragBox(gd, plotinfo, x, y, w, h, ns, ew) {
                 plotDy = ya2._offset - fracDy;
 
             fullLayout._defs.selectAll('#' + subplot.clipId)
-                .call(Lib.setTranslate, clipDx, clipDy)
-                .call(Lib.setScale, 1 / xScaleFactor, 1 / yScaleFactor);
+                .call(Drawing.setTranslate, clipDx, clipDy)
+                .call(Drawing.setScale, 1 / xScaleFactor, 1 / yScaleFactor);
 
             subplot.plot
-                .call(Lib.setTranslate, plotDx, plotDy)
-                .call(Lib.setScale, xScaleFactor, yScaleFactor)
+                .call(Drawing.setTranslate, plotDx, plotDy)
+                .call(Drawing.setScale, xScaleFactor, yScaleFactor)
 
                 // This is specifically directed at scatter traces, applying an inverse
                 // scale to individual points to counteract the scale of the trace
                 // as a whole:
-                .selectAll('.points').selectAll('.point')
-                    .call(Lib.setPointGroupScale, 1 / xScaleFactor, 1 / yScaleFactor);
+                .select('.scatterlayer').selectAll('.points').selectAll('.point')
+                    .call(Drawing.setPointGroupScale, 1 / xScaleFactor, 1 / yScaleFactor);
         }
     }
 
@@ -719,8 +727,10 @@ function getEndText(ax, end) {
         diff = Math.abs(initialVal - ax.range[1 - end]),
         dig;
 
+    // TODO: this should basically be ax.r2d but we're doing extra
+    // rounding here... can we clean up at all?
     if(ax.type === 'date') {
-        return Lib.ms2DateTime(initialVal, diff);
+        return initialVal;
     }
     else if(ax.type === 'log') {
         dig = Math.ceil(Math.max(0, -Math.log(diff) / Math.LN10)) + 3;

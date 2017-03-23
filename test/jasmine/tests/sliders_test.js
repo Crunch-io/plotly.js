@@ -97,15 +97,15 @@ describe('sliders defaults', function() {
 
         expect(layoutOut.sliders[0].steps.length).toEqual(3);
         expect(layoutOut.sliders[0].steps).toEqual([{
-            method: 'relayout', args: [],
+            method: 'relayout',
             label: 'Label #1',
             value: 'label-1'
         }, {
-            method: 'update', args: [],
+            method: 'update',
             label: 'Label #2',
             value: 'Label #2'
         }, {
-            method: 'animate', args: [],
+            method: 'animate',
             label: 'step-2',
             value: 'lacks-label'
         }]);
@@ -182,7 +182,88 @@ describe('sliders defaults', function() {
     });
 });
 
-describe('update sliders interactions', function() {
+describe('sliders initialization', function() {
+    'use strict';
+    var gd;
+
+    beforeEach(function(done) {
+        gd = createGraphDiv();
+
+        Plotly.plot(gd, [{x: [1, 2, 3]}], {
+            sliders: [{
+                transition: {duration: 0},
+                steps: [
+                    {method: 'restyle', args: [], label: 'first'},
+                    {method: 'restyle', args: [], label: 'second'},
+                ]
+            }]
+        }).then(done);
+    });
+
+    afterEach(function() {
+        Plotly.purge(gd);
+        destroyGraphDiv();
+    });
+
+    it('does not set active on initial plot', function() {
+        expect(gd.layout.sliders[0].active).toBeUndefined();
+    });
+});
+
+describe('ugly internal manipulation of steps', function() {
+    'use strict';
+    var gd;
+
+    beforeEach(function(done) {
+        gd = createGraphDiv();
+
+        Plotly.plot(gd, [{x: [1, 2, 3]}], {
+            sliders: [{
+                transition: {duration: 0},
+                steps: [
+                    {method: 'restyle', args: [], label: 'first'},
+                    {method: 'restyle', args: [], label: 'second'},
+                ]
+            }]
+        }).then(done);
+    });
+
+    afterEach(function() {
+        Plotly.purge(gd);
+        destroyGraphDiv();
+    });
+
+    it('adds and removes slider steps gracefully', function(done) {
+        expect(gd._fullLayout.sliders[0].active).toEqual(0);
+
+        // Set the active index higher than it can go:
+        Plotly.relayout(gd, {'sliders[0].active': 2}).then(function() {
+            // Confirm nothing changed
+            expect(gd._fullLayout.sliders[0].active).toEqual(0);
+
+            // Add an option manually without calling API functions:
+            gd.layout.sliders[0].steps.push({method: 'restyle', args: [], label: 'first'});
+
+            // Now that it's been added, restyle and try again:
+            return Plotly.relayout(gd, {'sliders[0].active': 2});
+        }).then(function() {
+            // Confirm it's been changed:
+            expect(gd._fullLayout.sliders[0].active).toEqual(2);
+
+            // Remove the option:
+            gd.layout.sliders[0].steps.pop();
+
+            // And redraw the plot:
+            return Plotly.redraw(gd);
+        }).then(function() {
+            // The selected option no longer exists, so confirm it's
+            // been fixed during the process of updating/drawing it:
+            expect(gd._fullLayout.sliders[0].active).toEqual(0);
+        }).catch(fail).then(done);
+    });
+});
+
+describe('sliders interactions', function() {
     'use strict';
 
     var mock = require('@mocks/sliders.json');
@@ -211,6 +292,7 @@ describe('update sliders interactions', function() {
             assertNodeCount('.' + constants.groupClassName, 1);
             expect(gd._fullLayout._pushmargin['slider-0']).toBeUndefined();
             expect(gd._fullLayout._pushmargin['slider-1']).toBeDefined();
+            expect(gd.layout.sliders.length).toEqual(2);
 
             return Plotly.relayout(gd, 'sliders[1]', null);
         })
@@ -218,6 +300,7 @@ describe('update sliders interactions', function() {
             assertNodeCount('.' + constants.groupClassName, 0);
             expect(gd._fullLayout._pushmargin['slider-0']).toBeUndefined();
             expect(gd._fullLayout._pushmargin['slider-1']).toBeUndefined();
+            expect(gd.layout.sliders.length).toEqual(1);
 
             return Plotly.relayout(gd, {
                 'sliders[0].visible': true,
@@ -288,6 +371,70 @@ describe('update sliders interactions', function() {
 
             done();
         }, 100);
+    });
+
+    it('should issue events on interaction', function(done) {
+        var cntStart = 0;
+        var cntInteraction = 0;
+        var cntNonInteraction = 0;
+        var cntEnd = 0;
+
+        gd.on('plotly_sliderstart', function() {
+            cntStart++;
+        }).on('plotly_sliderchange', function(datum) {
+            if(datum.interaction) {
+                cntInteraction++;
+            } else {
+                cntNonInteraction++;
+            }
+        }).on('plotly_sliderend', function() {
+            cntEnd++;
+        });
+
+        function assertEventCounts(starts, interactions, noninteractions, ends) {
+            expect(
+                [cntStart, cntInteraction, cntNonInteraction, cntEnd]
+            ).toEqual(
+                [starts, interactions, noninteractions, ends]
+            );
+        }
+
+        assertEventCounts(0, 0, 0, 0);
+
+        var firstGroup = gd._fullLayout._infolayer.select('.' + constants.railTouchRectClass);
+        var railNode = firstGroup.node();
+        var touchRect = railNode.getBoundingClientRect();
+
+        // Dispatch a click on the right side of the bar:
+        railNode.dispatchEvent(new MouseEvent('mousedown', {
+            clientY: touchRect.top + 5,
+            clientX: touchRect.left + touchRect.width - 5,
+        }));
+
+        setTimeout(function() {
+            // One slider received a mousedown, one received an interaction, and one received a change:
+            assertEventCounts(1, 1, 1, 0);
+
+            // Drag to the left side:
+            gd.dispatchEvent(new MouseEvent('mousemove', {
+                clientY: touchRect.top + 5,
+                clientX: touchRect.left + 5,
+            }));
+
+            setTimeout(function() {
+                // On move, now to changes for the each slider, and no ends:
+                assertEventCounts(1, 2, 2, 0);
+
+                gd.dispatchEvent(new MouseEvent('mouseup'));
+
+                setTimeout(function() {
+                    // Now an end:
+                    assertEventCounts(1, 2, 2, 1);
+
+                    done();
+                }, 50);
+            }, 50);
+        }, 50);
     });
 
     function assertNodeCount(query, cnt) {

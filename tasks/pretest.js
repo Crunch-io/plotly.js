@@ -5,7 +5,6 @@ var common = require('./util/common');
 
 // main
 makeCredentialsFile();
-makeSetPlotConfigFile();
 makeTestImageFolders();
 makeRequireJSFixture();
 
@@ -18,24 +17,6 @@ function makeCredentialsFile() {
 
     common.writeFile(constants.pathToCredentials, credentials);
     logger('make build/credentials.json');
-}
-
-// Create a 'set plot config' file,
-// to be included in the image test index
-function makeSetPlotConfigFile() {
-    var setPlotConfig = [
-        '\'use strict\';',
-        '',
-        '/* global Plotly:false */',
-        '',
-        'Plotly.setPlotConfig({',
-        '    mapboxAccessToken: \'' + constants.mapboxAccessToken + '\'',
-        '});',
-        ''
-    ].join('\n');
-
-    common.writeFile(constants.pathToSetPlotConfig, setPlotConfig);
-    logger('make build/set_plot_config.js');
 }
 
 // Make artifact folders for image tests
@@ -55,9 +36,13 @@ function makeTestImageFolders() {
 
 // Make script file that define plotly in a RequireJS context
 function makeRequireJSFixture() {
-    var bundle = fs.readFileSync(constants.pathToPlotlyDistMin, 'utf-8'),
-        template = 'define(\'plotly\', function(require, exports, module) { {{bundle}} });',
-        index = template.replace('{{bundle}}', bundle);
+    var bundle = fs.readFileSync(constants.pathToPlotlyDistMin, 'utf-8');
+
+    var index = [
+        'define(\'plotly\', function(require, exports, module) {',
+        bundle,
+        '});'
+    ].join('');
 
     common.writeFile(constants.pathToRequireJSFixture, index);
     logger('make build/requirejs_fixture.js');

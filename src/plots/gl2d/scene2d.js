@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -9,12 +9,14 @@
 
 'use strict';
 
+var Registry = require('../../registry');
 var Axes = require('../../plots/cartesian/axes');
 var Fx = require('../../plots/cartesian/graph_interact');
 
 var createPlot2D = require('gl-plot2d');
 var createSpikes = require('gl-spikes2d');
 var createSelectBox = require('gl-select-box');
+var getContext = require('webgl-context');
 
 var createOptions = require('./convert');
 var createCamera = require('./camera');
@@ -32,9 +34,8 @@ function Scene2D(options, fullLayout) {
     this.id = options.id;
     this.staticPlot = !!options.staticPlot;
 
-    this.fullLayout = fullLayout;
     this.fullData = null;
-    this.updateAxes(fullLayout);
+    this.updateRefs(fullLayout);
 
     this.makeFramework();
 
@@ -50,7 +51,6 @@ function Scene2D(options, fullLayout) {
 
     // trace set
     this.traces = {};
-    this._inputs = {};
 
     // create axes spikes
     this.spikes = createSpikes(this.glplot);
@@ -87,16 +87,15 @@ proto.makeFramework = function() {
         if(!STATIC_CONTEXT) {
             STATIC_CANVAS = document.createElement('canvas');
 
-            try {
-                STATIC_CONTEXT = STATIC_CANVAS.getContext('webgl', {
-                    preserveDrawingBuffer: false,
-                    premultipliedAlpha: true,
-                    antialias: true
-                });
-            } catch(e) {
-                throw new Error([
-                    'Error creating static canvas/context for image server'
-                ].join(' '));
+            STATIC_CONTEXT = getContext({
+                canvas: STATIC_CANVAS,
+                preserveDrawingBuffer: false,
+                premultipliedAlpha: true,
+                antialias: true
+            });
+
+            if(!STATIC_CONTEXT) {
+                throw new Error('Error creating static canvas/context for image server');
             }
         }
 
@@ -104,23 +103,12 @@ proto.makeFramework = function() {
         this.gl = STATIC_CONTEXT;
     }
     else {
-        var liveCanvas = document.createElement('canvas'),
-            glOpts = { premultipliedAlpha: true };
-        var gl;
+        var liveCanvas = document.createElement('canvas');
 
-        try {
-            gl = liveCanvas.getContext('webgl', glOpts);
-        } catch(e) {
-            //
-        }
-
-        if(!gl) {
-            try {
-                gl = liveCanvas.getContext('experimental-webgl', glOpts);
-            } catch(e) {
-                //
-            }
-        }
+        var gl = getContext({
+            canvas: liveCanvas,
+            premultipliedAlpha: true
+        });
 
         if(!gl) showNoWebGlMsg(this);
 
@@ -129,18 +117,16 @@ proto.makeFramework = function() {
     }
 
     // position the canvas
-    var canvas = this.canvas,
-        pixelRatio = this.pixelRatio,
-        fullLayout = this.fullLayout;
+    var canvas = this.canvas;
 
-    canvas.width = Math.ceil(pixelRatio * fullLayout.width) |0;
-    canvas.height = Math.ceil(pixelRatio * fullLayout.height) |0;
     canvas.style.width = '100%';
     canvas.style.height = '100%';
     canvas.style.position = 'absolute';
     canvas.style.top = '0px';
     canvas.style.left = '0px';
     canvas.style['pointer-events'] = 'none';
+
+    this.updateSize(canvas);
 
     // disabling user select on the canvas
     // sanitizes double-clicks interactions
@@ -173,6 +159,9 @@ proto.toImage = function(format) {
 
     this.stopped = true;
     if(this.staticPlot) this.container.appendChild(STATIC_CANVAS);
+
+    // update canvas size
+    this.updateSize(this.canvas);
 
     // force redraw
     this.glplot.setDirty();
@@ -226,7 +215,35 @@ proto.toImage = function(format) {
     return dataURL;
 };
 
+proto.updateSize = function(canvas) {
+    if(!canvas) canvas = this.canvas;
+
+    var pixelRatio = this.pixelRatio,
+        fullLayout = this.fullLayout;
+
+    var width = fullLayout.width,
+        height = fullLayout.height,
+        pixelWidth = Math.ceil(pixelRatio * width) |0,
+        pixelHeight = Math.ceil(pixelRatio * height) |0;
+
+    // check for resize
+    if(canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+    }
+
+    // make sure plots render right thing
+    if(this.redraw) this.redraw();
+
+    return canvas;
+};
+
 proto.computeTickMarks = function() {
+    this.xaxis.setScale();
+    this.yaxis.setScale();
+
+    // override _length from backward compatibility
+    // even though setScale 'should' give the correct result
     this.xaxis._length =
         this.glplot.viewBox[2] - this.glplot.viewBox[0];
     this.yaxis._length =
@@ -239,9 +256,8 @@ proto.computeTickMarks = function() {
 
     for(var j = 0; j < 2; ++j) {
         for(var i = 0; i < nextTicks[j].length; ++i) {
-            // TODO add support for '\n' in gl-plot2d,
-            // For now, replace '\n' with ' '
-            nextTicks[j][i].text = convertHTMLToUnicode(nextTicks[j][i].text + '').replace(/\n/g, ' ');
+            // coercing tick value (may not be a string) to a string
+            nextTicks[j][i].text = convertHTMLToUnicode(nextTicks[j][i].text + '');
         }
     }
 
@@ -263,52 +279,46 @@ function compareTicks(a, b) {
     return false;
 }
 
-proto.updateAxes = function(options) {
+proto.updateRefs = function(newFullLayout) {
+    this.fullLayout = newFullLayout;
+
     var spmatch = Axes.subplotMatch,
         xaxisName = 'xaxis' + this.id.match(spmatch)[1],
         yaxisName = 'yaxis' + this.id.match(spmatch)[2];
 
-    this.xaxis = options[xaxisName];
-    this.yaxis = options[yaxisName];
+    this.xaxis = this.fullLayout[xaxisName];
+    this.yaxis = this.fullLayout[yaxisName];
 };
 
-proto.updateFx = function(options) {
-    var fullLayout = this.fullLayout;
+proto.relayoutCallback = function() {
+    var graphDiv = this.graphDiv,
+        xaxis = this.xaxis,
+        yaxis = this.yaxis,
+        layout = graphDiv.layout;
 
-    fullLayout.dragmode = options.dragmode;
-    fullLayout.hovermode = options.hovermode;
-};
+    // update user layout
+    layout.xaxis.autorange = xaxis.autorange;
+    layout.xaxis.range = xaxis.range.slice(0);
+    layout.yaxis.autorange = yaxis.autorange;
+    layout.yaxis.range = yaxis.range.slice(0);
 
-var relayoutCallback = function(scene) {
-
-    var xrange = scene.xaxis.range,
-        yrange = scene.yaxis.range;
-
-    // Update the layout on the DIV
-    scene.graphDiv.layout.xaxis.autorange = scene.xaxis.autorange;
-    scene.graphDiv.layout.xaxis.range = xrange.slice(0);
-    scene.graphDiv.layout.yaxis.autorange = scene.yaxis.autorange;
-    scene.graphDiv.layout.yaxis.range = yrange.slice(0);
-
-    // Make a meaningful value to be passed on to the possible 'plotly_relayout' subscriber(s)
-    var update = { // scene.camera has no many useful projection or scale information
-        lastInputTime: scene.camera.lastInputTime // helps determine which one is the latest input (if async)
+    // make a meaningful value to be passed on to the possible 'plotly_relayout' subscriber(s)
+    // scene.camera has no many useful projection or scale information
+    // helps determine which one is the latest input (if async)
+    var update = {
+        lastInputTime: this.camera.lastInputTime
     };
-    update[scene.xaxis._name] = xrange.slice();
-    update[scene.yaxis._name] = yrange.slice();
 
-    scene.graphDiv.emit('plotly_relayout', update);
+    update[xaxis._name] = xaxis.range.slice(0);
+    update[yaxis._name] = yaxis.range.slice(0);
+
+    graphDiv.emit('plotly_relayout', update);
 };
 
 proto.cameraChanged = function() {
-    var camera = this.camera,
-        xrange = this.xaxis.range,
-        yrange = this.yaxis.range;
+    var camera = this.camera;
 
-    this.glplot.setDataBox([
-        xrange[0], yrange[0],
-        xrange[1], yrange[1]
-    ]);
+    this.glplot.setDataBox(this.calcDataBox());
 
     var nextTicks = this.computeTickMarks();
     var curTicks = this.glplotOptions.ticks;
@@ -317,7 +327,20 @@ proto.cameraChanged = function() {
         this.glplotOptions.ticks = nextTicks;
         this.glplotOptions.dataBox = camera.dataBox;
         this.glplot.update(this.glplotOptions);
-        relayoutCallback(this);
+        this.handleAnnotations();
+    }
+};
+
+proto.handleAnnotations = function() {
+    var gd = this.graphDiv,
+        annotations = this.fullLayout.annotations;
+
+    for(var i = 0; i < annotations.length; i++) {
+        var ann = annotations[i];
+
+        if(ann.xref === this.xaxis._id && ann.yref === this.yaxis._id) {
+            Registry.getComponentMethod('annotations', 'drawOne')(gd, i);
+        }
     }
 };
 
@@ -338,30 +361,20 @@ proto.destroy = function() {
     this.container.removeChild(this.mouseContainer);
 
     this.fullData = null;
-    this._inputs = null;
     this.glplot = null;
     this.stopped = true;
 };
 
 proto.plot = function(fullData, calcData, fullLayout) {
-    var glplot = this.glplot,
-        pixelRatio = this.pixelRatio;
+    var glplot = this.glplot;
 
-    this.fullLayout = fullLayout;
-    this.updateAxes(fullLayout);
+    this.updateRefs(fullLayout);
     this.updateTraces(fullData, calcData);
 
     var width = fullLayout.width,
-        height = fullLayout.height,
-        pixelWidth = Math.ceil(pixelRatio * width) |0,
-        pixelHeight = Math.ceil(pixelRatio * height) |0;
+        height = fullLayout.height;
 
-    // check for resize
-    var canvas = this.canvas;
-    if(canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
-        canvas.width = pixelWidth;
-        canvas.height = pixelHeight;
-    }
+    this.updateSize(this.canvas);
 
     var options = this.glplotOptions;
     options.merge(fullLayout);
@@ -410,19 +423,39 @@ proto.plot = function(fullData, calcData, fullLayout) {
         ax._length = options.viewBox[i + 2] - options.viewBox[i];
 
         Axes.doAutoRange(ax);
+        ax.setScale();
     }
 
     options.ticks = this.computeTickMarks();
 
-    var xrange = this.xaxis.range;
-    var yrange = this.yaxis.range;
-    options.dataBox = [xrange[0], yrange[0], xrange[1], yrange[1]];
+    options.dataBox = this.calcDataBox();
 
     options.merge(fullLayout);
     glplot.update(options);
 
     // force redraw so that promise is returned when rendering is completed
     this.glplot.draw();
+};
+
+proto.calcDataBox = function() {
+    var xaxis = this.xaxis,
+        yaxis = this.yaxis,
+        xrange = xaxis.range,
+        yrange = yaxis.range,
+        xr2l = xaxis.r2l,
+        yr2l = yaxis.r2l;
+
+    return [xr2l(xrange[0]), yr2l(yrange[0]), xr2l(xrange[1]), yr2l(yrange[1])];
+};
+
+proto.setRanges = function(dataBox) {
+    var xaxis = this.xaxis,
+        yaxis = this.yaxis,
+        xl2r = xaxis.l2r,
+        yl2r = yaxis.l2r;
+
+    xaxis.range = [xl2r(dataBox[0]), xl2r(dataBox[2])];
+    yaxis.range = [yl2r(dataBox[1]), yl2r(dataBox[3])];
 };
 
 proto.updateTraces = function(fullData, calcData) {
@@ -452,7 +485,6 @@ proto.updateTraces = function(fullData, calcData) {
     // update / create trace objects
     for(i = 0; i < fullData.length; i++) {
         fullTrace = fullData[i];
-        this._inputs[fullTrace.uid] = i;
         var calcTrace = calcData[i],
             traceObj = this.traces[fullTrace.uid];
 
@@ -462,19 +494,31 @@ proto.updateTraces = function(fullData, calcData) {
             this.traces[fullTrace.uid] = traceObj;
         }
     }
+
+    // order object per traces
+    this.glplot.objects.sort(function(a, b) {
+        return a._trace.index - b._trace.index;
+    });
+
 };
 
 proto.emitPointAction = function(nextSelection, eventType) {
+    var uid = nextSelection.trace.uid;
+    var trace;
 
-    var curveIndex = this._inputs[nextSelection.trace.uid];
+    for(var i = 0; i < this.fullData.length; i++) {
+        if(this.fullData[i].uid === uid) {
+            trace = this.fullData[i];
+        }
+    }
 
     this.graphDiv.emit(eventType, {
         points: [{
             x: nextSelection.traceCoord[0],
             y: nextSelection.traceCoord[1],
-            curveNumber: curveIndex,
+            curveNumber: trace.index,
             pointNumber: nextSelection.pointIndex,
-            data: this.fullData[curveIndex]._input,
+            data: trace._input,
             fullData: this.fullData,
             xaxis: this.xaxis,
             yaxis: this.yaxis

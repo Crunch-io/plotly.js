@@ -1,5 +1,7 @@
 var Lib = require('@src/lib');
 var setCursor = require('@src/lib/setcursor');
+var overrideCursor = require('@src/lib/override_cursor');
+var config = require('@src/plot_api/plot_config');
 
 var d3 = require('d3');
 var Plotly = require('@lib');
@@ -7,43 +9,11 @@ var PlotlyInternal = require('@src/plotly');
 var createGraphDiv = require('../assets/create_graph_div');
 var destroyGraphDiv = require('../assets/destroy_graph_div');
 var Plots = PlotlyInternal.Plots;
-
+var customMatchers = require('../assets/custom_matchers');
+var failTest = require('../assets/fail_test');
 
 describe('Test lib.js:', function() {
     'use strict';
-
-    describe('parseDate() should', function() {
-        it('return false on bad (number) input:', function() {
-            expect(Lib.parseDate(0)).toBe(false);
-        });
-        it('return false on bad (string) input:', function() {
-            expect(Lib.parseDate('toto')).toBe(false);
-        });
-        it('work with yyyy-mm-dd string input:', function() {
-            var input = '2014-12-01',
-                res = Lib.parseDate(input),
-                res0 = new Date(2014, 11, 1);
-            expect(res.getTime()).toEqual(res0.getTime());
-        });
-        it('work with mm/dd/yyyy string input:', function() {
-            var input = '12/01/2014',
-                res = Lib.parseDate(input),
-                res0 = new Date(2014, 11, 1);
-            expect(res.getTime()).toEqual(res0.getTime());
-        });
-        it('work with yyyy-mm-dd HH:MM:SS.sss string input:', function() {
-            var input = '2014-12-01 09:50:05.124',
-                res = Lib.parseDate(input),
-                res0 = new Date(2014, 11, 1, 9, 50, 5, 124);
-            expect(res.getTime()).toEqual(res0.getTime());
-        });
-        it('work with mm/dd/yyyy HH:MM:SS string input:', function() {
-            var input = '2014-12-01 09:50:05',
-                res = Lib.parseDate(input),
-                res0 = new Date(2014, 11, 1, 9, 50, 5);
-            expect(res.getTime()).toEqual(res0.getTime());
-        });
-    });
 
     describe('interp() should', function() {
         it('return 1.75 as Q1 of [1, 2, 3, 4, 5]:', function() {
@@ -323,7 +293,7 @@ describe('Test lib.js:', function() {
 
             prop.set(null);
             expect(prop.get()).toBe(undefined);
-            expect(obj).toEqual({arr: [undefined, undefined, {b: 3}]});
+            expect(obj).toEqual({arr: [{}, {}, {b: 3}]});
 
             prop.set([2, 3, 4]);
             expect(prop.get()).toEqual([2, 3, 4]);
@@ -360,7 +330,7 @@ describe('Test lib.js:', function() {
             expect(obj).toEqual({a: false, b: '', c: 0, d: NaN});
         });
 
-        it('should remove containers but not data arrays', function() {
+        it('should not remove data arrays or empty objects inside container arrays', function() {
             var obj = {
                     annotations: [{a: [1, 2, 3]}],
                     c: [1, 2, 3],
@@ -375,23 +345,23 @@ describe('Test lib.js:', function() {
                 propR = np(obj, 'range'),
                 propS = np(obj, 'shapes[0]');
 
-            propA.set([]);
+            propA.set([[]]);
             propC.set([]);
             propD0.set(undefined);
             propD1.set(undefined);
             propR.set([]);
             propS.set(null);
 
-            expect(obj).toEqual({c: []});
+            // 'a' and 'c' are both potentially data arrays so we need to keep them
+            expect(obj).toEqual({annotations: [{a: []}], c: []});
         });
 
 
-        it('should have no empty object sub-containers but contain empty data arrays', function() {
+        it('should allow empty object sub-containers only in arrays', function() {
             var obj = {},
                 prop = np(obj, 'a[1].b.c'),
-                expectedArr = [];
-
-            expectedArr[1] = {b: {c: 'pizza'}};
+                // we never set a value into a[0] so it doesn't even get {}
+                expectedArr = [undefined, {b: {c: 'pizza'}}];
 
             expect(prop.get()).toBe(undefined);
             expect(obj).toEqual({});
@@ -402,7 +372,31 @@ describe('Test lib.js:', function() {
 
             prop.set(null);
             expect(prop.get()).toBe(undefined);
-            expect(obj).toEqual({a: []});
+            expect(obj).toEqual({a: [undefined, {}]});
+        });
+
+        it('does not prune inside `args` arrays', function() {
+            var obj = {},
+                args = np(obj, 'args');
+
+            args.set([]);
+            expect(obj.args).toBeUndefined();
+
+            args.set([null]);
+            expect(obj.args).toEqual([null]);
+
+            np(obj, 'args[1]').set([]);
+            expect(obj.args).toEqual([null, []]);
+
+            np(obj, 'args[2]').set({});
+            expect(obj.args).toEqual([null, [], {}]);
+
+            np(obj, 'args[1]').set();
+            expect(obj.args).toEqual([null, undefined, {}]);
+
+            // we still trim undefined off the end of arrays, but nothing else.
+            np(obj, 'args[2]').set();
+            expect(obj.args).toEqual([null]);
         });
 
         it('should get empty, and fail on set, with a bad input object', function() {
@@ -477,6 +471,10 @@ describe('Test lib.js:', function() {
     });
 
     describe('expandObjectPaths', function() {
+        beforeAll(function() {
+            jasmine.addMatchers(customMatchers);
+        });
+
         it('returns the original object', function() {
             var x = {};
             expect(Lib.expandObjectPaths(x)).toBe(x);
@@ -485,37 +483,37 @@ describe('Test lib.js:', function() {
         it('unpacks top-level paths', function() {
             var input = {'marker.color': 'red', 'marker.size': [1, 2, 3]};
             var expected = {marker: {color: 'red', size: [1, 2, 3]}};
-            expect(Lib.expandObjectPaths(input)).toEqual(expected);
+            expect(Lib.expandObjectPaths(input)).toLooseDeepEqual(expected);
         });
 
         it('unpacks recursively', function() {
             var input = {'marker.color': {'red.certainty': 'definitely'}};
             var expected = {marker: {color: {red: {certainty: 'definitely'}}}};
-            expect(Lib.expandObjectPaths(input)).toEqual(expected);
+            expect(Lib.expandObjectPaths(input)).toLooseDeepEqual(expected);
         });
 
         it('unpacks deep paths', function() {
             var input = {'foo.bar.baz': 'red'};
             var expected = {foo: {bar: {baz: 'red'}}};
-            expect(Lib.expandObjectPaths(input)).toEqual(expected);
+            expect(Lib.expandObjectPaths(input)).toLooseDeepEqual(expected);
         });
 
         it('unpacks non-top-level deep paths', function() {
             var input = {color: {'foo.bar.baz': 'red'}};
             var expected = {color: {foo: {bar: {baz: 'red'}}}};
-            expect(Lib.expandObjectPaths(input)).toEqual(expected);
+            expect(Lib.expandObjectPaths(input)).toLooseDeepEqual(expected);
         });
 
         it('merges dotted properties into objects', function() {
             var input = {marker: {color: 'red'}, 'marker.size': 8};
             var expected = {marker: {color: 'red', size: 8}};
-            expect(Lib.expandObjectPaths(input)).toEqual(expected);
+            expect(Lib.expandObjectPaths(input)).toLooseDeepEqual(expected);
         });
 
         it('merges objects into dotted properties', function() {
             var input = {'marker.size': 8, marker: {color: 'red'}};
             var expected = {marker: {color: 'red', size: 8}};
-            expect(Lib.expandObjectPaths(input)).toEqual(expected);
+            expect(Lib.expandObjectPaths(input)).toLooseDeepEqual(expected);
         });
 
         it('retains the identity of nested objects', function() {
@@ -537,6 +535,104 @@ describe('Test lib.js:', function() {
             expect(input).toBe(expanded);
             expect(origArray).toBe(newArray);
         });
+
+        it('expands bracketed array notation', function() {
+            var input = {'marker[1]': {color: 'red'}};
+            var expected = {marker: [undefined, {color: 'red'}]};
+            expect(Lib.expandObjectPaths(input)).toLooseDeepEqual(expected);
+        });
+
+        it('expands nested arrays', function() {
+            var input = {'marker[1].range[1]': 5};
+            var expected = {marker: [undefined, {range: [undefined, 5]}]};
+            var computed = Lib.expandObjectPaths(input);
+            expect(computed).toLooseDeepEqual(expected);
+        });
+
+        it('expands bracketed array with more nested attributes', function() {
+            var input = {'marker[1]': {'color.alpha': 2}};
+            var expected = {marker: [undefined, {color: {alpha: 2}}]};
+            var computed = Lib.expandObjectPaths(input);
+            expect(computed).toLooseDeepEqual(expected);
+        });
+
+        it('expands bracketed array notation without further nesting', function() {
+            var input = {'marker[1]': 8};
+            var expected = {marker: [undefined, 8]};
+            var computed = Lib.expandObjectPaths(input);
+            expect(computed).toLooseDeepEqual(expected);
+        });
+
+        it('expands bracketed array notation with further nesting', function() {
+            var input = {'marker[1].size': 8};
+            var expected = {marker: [undefined, {size: 8}]};
+            var computed = Lib.expandObjectPaths(input);
+            expect(computed).toLooseDeepEqual(expected);
+        });
+
+        it('expands bracketed array notation with further nesting', function() {
+            var input = {'marker[1].size.magnitude': 8};
+            var expected = {marker: [undefined, {size: {magnitude: 8}}]};
+            var computed = Lib.expandObjectPaths(input);
+            expect(computed).toLooseDeepEqual(expected);
+        });
+
+        it('combines changes with single array nesting', function() {
+            var input = {'marker[1].foo': 5, 'marker[0].foo': 4};
+            var expected = {marker: [{foo: 4}, {foo: 5}]};
+            var computed = Lib.expandObjectPaths(input);
+            expect(computed).toLooseDeepEqual(expected);
+        });
+
+        it('does not skip over array container set to null values', function() {
+            var input = {title: 'clear annotations', annotations: null};
+            var expected = {title: 'clear annotations', annotations: null};
+            var computed = Lib.expandObjectPaths(input);
+            expect(computed).toLooseDeepEqual(expected);
+        });
+
+        it('expands array containers', function() {
+            var input = {title: 'clear annotation 1', 'annotations[1]': { title: 'new' }};
+            var expected = {title: 'clear annotation 1', annotations: [null, { title: 'new' }]};
+            var computed = Lib.expandObjectPaths(input);
+            expect(computed).toLooseDeepEqual(expected);
+        });
+
+        // TODO: This test is unimplemented since it's a currently-unused corner case.
+        // Getting the test to pass requires some extension (pun?) to extendDeepNoArrays
+        // that's intelligent enough to only selectively merge *some* arrays, in particular
+        // not data arrays but yes on arrays that were previously expanded. This is a bit
+        // tricky to get to work just right and currently doesn't have any known use since
+        // container arrays are not multiply nested.
+        //
+        // Additional notes on what works or what doesn't work. This case does *not* work
+        // because the two nested arrays that would result from the expansion need to be
+        // deep merged.
+        //
+        //   Lib.expandObjectPaths({'marker.range[0]': 5, 'marker.range[1]': 2})
+        //
+        //   // => {marker: {range: [null, 2]}}
+        //
+        // This case *does* work becuase the array merging does not require a deep extend:
+        //
+        //   Lib.expandObjectPaths({'range[0]': 5, 'range[1]': 2}
+        //
+        //   // => {range: [5, 2]}
+        //
+        // Finally note that this case works fine becuase there's no merge necessary:
+        //
+        //   Lib.expandObjectPaths({'marker.range[1]': 2})
+        //
+        //   // => {marker: {range: [null, 2]}}
+        //
+        /*
+        it('combines changes', function() {
+            var input = {'marker[1].range[1]': 5, 'marker[1].range[0]': 4};
+            var expected = {marker: [undefined, {range: [4, 5]}]};
+            var computed = Lib.expandObjectPaths(input);
+            expect(computed).toEqual(expected);
+        });
+        */
     });
 
     describe('coerce', function() {
@@ -605,9 +701,9 @@ describe('Test lib.js:', function() {
 
             it('should set a value and return the value it sets when user input is valid', function() {
                 var colVal = 'red',
-                    sizeVal = 14,
+                    sizeVal = 0, // 0 is valid but falsey
                     attrs = {testMarker: {testColor: {valType: 'color', dflt: 'rgba(0, 0, 0, 0)'},
-                                          testSize: {valType: 'number', dflt: 20}}},
+                        testSize: {valType: 'number', dflt: 20}}},
                     obj = {testMarker: {testColor: colVal, testSize: sizeVal}},
                     outObj = {},
                     colOut = coerce2(obj, outObj, attrs, 'testMarker.testColor'),
@@ -623,7 +719,7 @@ describe('Test lib.js:', function() {
                 var colVal = 'r',
                     sizeVal = 'aaaaah!',
                     attrs = {testMarker: {testColor: {valType: 'color', dflt: 'rgba(0, 0, 0, 0)'},
-                                          testSize: {valType: 'number', dflt: 20}}},
+                        testSize: {valType: 'number', dflt: 20}}},
                     obj = {testMarker: {testColor: colVal, testSize: sizeVal}},
                     outObj = {},
                     colOut = coerce2(obj, outObj, attrs, 'testMarker.testColor'),
@@ -637,9 +733,9 @@ describe('Test lib.js:', function() {
 
             it('should return false if there is no user input', function() {
                 var colVal = null,
-                    sizeVal = null,
+                    sizeVal, // undefined
                     attrs = {testMarker: {testColor: {valType: 'color', dflt: 'rgba(0, 0, 0, 0)'},
-                                          testSize: {valType: 'number', dflt: 20}}},
+                        testSize: {valType: 'number', dflt: 20}}},
                     obj = {testMarker: {testColor: colVal, testSize: sizeVal}},
                     outObj = {},
                     colOut = coerce2(obj, outObj, attrs, 'testMarker.testColor'),
@@ -1122,207 +1218,53 @@ describe('Test lib.js:', function() {
         });
     });
 
-    describe('getTranslate', function() {
-
-        it('should work with regular DOM elements', function() {
-            var el = document.createElement('div');
-
-            expect(Lib.getTranslate(el)).toEqual({ x: 0, y: 0 });
-
-            el.setAttribute('transform', 'translate(123.45px, 67)');
-            expect(Lib.getTranslate(el)).toEqual({ x: 123.45, y: 67 });
-
-            el.setAttribute('transform', 'translate(123.45)');
-            expect(Lib.getTranslate(el)).toEqual({ x: 123.45, y: 0 });
-
-            el.setAttribute('transform', 'translate(1 2)');
-            expect(Lib.getTranslate(el)).toEqual({ x: 1, y: 2 });
-
-            el.setAttribute('transform', 'translate(1 2); rotate(20deg)');
-            expect(Lib.getTranslate(el)).toEqual({ x: 1, y: 2 });
-
-            el.setAttribute('transform', 'rotate(20deg) translate(1 2);');
-            expect(Lib.getTranslate(el)).toEqual({ x: 1, y: 2 });
-
-            el.setAttribute('transform', 'rotate(20deg)');
-            expect(Lib.getTranslate(el)).toEqual({ x: 0, y: 0 });
-        });
-
-        it('should work with d3 elements', function() {
-            var el = d3.select(document.createElement('div'));
-
-            el.attr('transform', 'translate(123.45px, 67)');
-            expect(Lib.getTranslate(el)).toEqual({ x: 123.45, y: 67 });
-
-            el.attr('transform', 'translate(123.45)');
-            expect(Lib.getTranslate(el)).toEqual({ x: 123.45, y: 0 });
-
-            el.attr('transform', 'translate(1 2)');
-            expect(Lib.getTranslate(el)).toEqual({ x: 1, y: 2 });
-
-            el.attr('transform', 'translate(1 2); rotate(20)');
-            expect(Lib.getTranslate(el)).toEqual({ x: 1, y: 2 });
-
-            el.attr('transform', 'rotate(20)');
-            expect(Lib.getTranslate(el)).toEqual({ x: 0, y: 0 });
-        });
-    });
-
-    describe('setTranslate', function() {
-
-        it('should work with regular DOM elements', function() {
-            var el = document.createElement('div');
-
-            Lib.setTranslate(el, 5);
-            expect(el.getAttribute('transform')).toBe('translate(5, 0)');
-
-            Lib.setTranslate(el, 10, 20);
-            expect(el.getAttribute('transform')).toBe('translate(10, 20)');
-
-            Lib.setTranslate(el);
-            expect(el.getAttribute('transform')).toBe('translate(0, 0)');
-
-            el.setAttribute('transform', 'translate(0, 0); rotate(30)');
-            Lib.setTranslate(el, 30, 40);
-            expect(el.getAttribute('transform')).toBe('rotate(30) translate(30, 40)');
-        });
-
-        it('should work with d3 elements', function() {
-            var el = d3.select(document.createElement('div'));
-
-            Lib.setTranslate(el, 5);
-            expect(el.attr('transform')).toBe('translate(5, 0)');
-
-            Lib.setTranslate(el, 30, 40);
-            expect(el.attr('transform')).toBe('translate(30, 40)');
-
-            Lib.setTranslate(el);
-            expect(el.attr('transform')).toBe('translate(0, 0)');
-
-            el.attr('transform', 'translate(0, 0); rotate(30)');
-            Lib.setTranslate(el, 30, 40);
-            expect(el.attr('transform')).toBe('rotate(30) translate(30, 40)');
-        });
-    });
-
-    describe('getScale', function() {
-
-        it('should work with regular DOM elements', function() {
-            var el = document.createElement('div');
-
-            expect(Lib.getScale(el)).toEqual({ x: 1, y: 1 });
-
-            el.setAttribute('transform', 'scale(1.23, 45)');
-            expect(Lib.getScale(el)).toEqual({ x: 1.23, y: 45 });
-
-            el.setAttribute('transform', 'scale(123.45)');
-            expect(Lib.getScale(el)).toEqual({ x: 123.45, y: 1 });
-
-            el.setAttribute('transform', 'scale(0.1 2)');
-            expect(Lib.getScale(el)).toEqual({ x: 0.1, y: 2 });
-
-            el.setAttribute('transform', 'scale(0.1 2); rotate(20deg)');
-            expect(Lib.getScale(el)).toEqual({ x: 0.1, y: 2 });
-
-            el.setAttribute('transform', 'rotate(20deg) scale(0.1 2);');
-            expect(Lib.getScale(el)).toEqual({ x: 0.1, y: 2 });
-
-            el.setAttribute('transform', 'rotate(20deg)');
-            expect(Lib.getScale(el)).toEqual({ x: 1, y: 1 });
-        });
-
-        it('should work with d3 elements', function() {
-            var el = d3.select(document.createElement('div'));
-
-            el.attr('transform', 'scale(1.23, 45)');
-            expect(Lib.getScale(el)).toEqual({ x: 1.23, y: 45 });
-
-            el.attr('transform', 'scale(123.45)');
-            expect(Lib.getScale(el)).toEqual({ x: 123.45, y: 1 });
-
-            el.attr('transform', 'scale(0.1 2)');
-            expect(Lib.getScale(el)).toEqual({ x: 0.1, y: 2 });
-
-            el.attr('transform', 'scale(0.1 2); rotate(20)');
-            expect(Lib.getScale(el)).toEqual({ x: 0.1, y: 2 });
-
-            el.attr('transform', 'rotate(20)');
-            expect(Lib.getScale(el)).toEqual({ x: 1, y: 1 });
-        });
-    });
-
-    describe('setScale', function() {
-
-        it('should work with regular DOM elements', function() {
-            var el = document.createElement('div');
-
-            Lib.setScale(el, 5);
-            expect(el.getAttribute('transform')).toBe('scale(5, 1)');
-
-            Lib.setScale(el, 30, 40);
-            expect(el.getAttribute('transform')).toBe('scale(30, 40)');
-
-            Lib.setScale(el);
-            expect(el.getAttribute('transform')).toBe('scale(1, 1)');
-
-            el.setAttribute('transform', 'scale(1, 1); rotate(30)');
-            Lib.setScale(el, 30, 40);
-            expect(el.getAttribute('transform')).toBe('rotate(30) scale(30, 40)');
-        });
-
-        it('should work with d3 elements', function() {
-            var el = d3.select(document.createElement('div'));
-
-            Lib.setScale(el, 5);
-            expect(el.attr('transform')).toBe('scale(5, 1)');
-
-            Lib.setScale(el, 30, 40);
-            expect(el.attr('transform')).toBe('scale(30, 40)');
-
-            Lib.setScale(el);
-            expect(el.attr('transform')).toBe('scale(1, 1)');
-
-            el.attr('transform', 'scale(0, 0); rotate(30)');
-            Lib.setScale(el, 30, 40);
-            expect(el.attr('transform')).toBe('rotate(30) scale(30, 40)');
-        });
-    });
-
-    describe('setPointGroupScale', function() {
-        var el, sel;
+    describe('overrideCursor', function() {
 
         beforeEach(function() {
-            el = document.createElement('div');
-            sel = d3.select(el);
+            this.el3 = d3.select(createGraphDiv());
         });
 
-        it('sets the scale of a point', function() {
-            Lib.setPointGroupScale(sel, 2, 2);
-            expect(el.getAttribute('transform')).toBe('scale(2,2)');
+        afterEach(destroyGraphDiv);
+
+        it('should apply the new cursor(s) and revert to the original when removed', function() {
+            this.el3
+                .classed('cursor-before', true)
+                .classed('not-a-cursor', true)
+                .classed('another', true);
+
+            overrideCursor(this.el3, 'after');
+            expect(this.el3.attr('class')).toBe('not-a-cursor another cursor-after');
+
+            overrideCursor(this.el3, 'later');
+            expect(this.el3.attr('class')).toBe('not-a-cursor another cursor-later');
+
+            overrideCursor(this.el3);
+            expect(this.el3.attr('class')).toBe('not-a-cursor another cursor-before');
         });
 
-        it('appends the scale of a point', function() {
-            el.setAttribute('transform', 'translate(1,2)');
-            Lib.setPointGroupScale(sel, 2, 2);
-            expect(el.getAttribute('transform')).toBe('translate(1,2) scale(2,2)');
+        it('should apply the new cursor(s) and revert to the none when removed', function() {
+            this.el3
+                .classed('not-a-cursor', true)
+                .classed('another', true);
+
+            overrideCursor(this.el3, 'after');
+            expect(this.el3.attr('class')).toBe('not-a-cursor another cursor-after');
+
+            overrideCursor(this.el3, 'later');
+            expect(this.el3.attr('class')).toBe('not-a-cursor another cursor-later');
+
+            overrideCursor(this.el3);
+            expect(this.el3.attr('class')).toBe('not-a-cursor another');
         });
 
-        it('modifies the scale of a point', function() {
-            el.setAttribute('transform', 'translate(1,2) scale(3,4)');
-            Lib.setPointGroupScale(sel, 2, 2);
-            expect(el.getAttribute('transform')).toBe('translate(1,2) scale(2,2)');
-        });
+        it('should do nothing if no existing or new override is present', function() {
+            this.el3
+                .classed('cursor-before', true)
+                .classed('not-a-cursor', true);
 
-        it('does not apply the scale of a point if scale (1, 1)', function() {
-            el.setAttribute('transform', 'translate(1,2)');
-            Lib.setPointGroupScale(sel, 1, 1);
-            expect(el.getAttribute('transform')).toBe('translate(1,2)');
-        });
+            overrideCursor(this.el3);
 
-        it('removes the scale of a point if scale (1, 1)', function() {
-            el.setAttribute('transform', 'translate(1,2) scale(3,4)');
-            Lib.setPointGroupScale(sel, 1, 1);
-            expect(el.getAttribute('transform')).toBe('translate(1,2)');
+            expect(this.el3.attr('class')).toBe('cursor-before not-a-cursor');
         });
     });
 
@@ -1365,6 +1307,49 @@ describe('Test lib.js:', function() {
             expect(this.array).toEqual(['a', 'b', 'c', { a: 'A' }]);
 
         });
+
+        it('should recognize matching RegExps', function() {
+            expect(this.array).toEqual(['a', 'b', 'c', { a: 'A' }]);
+
+            var r1 = /a/,
+                r2 = /a/;
+            Lib.pushUnique(this.array, r1);
+            expect(this.array).toEqual(['a', 'b', 'c', { a: 'A' }, r1]);
+
+            Lib.pushUnique(this.array, r2);
+            expect(this.array).toEqual(['a', 'b', 'c', { a: 'A' }, r1]);
+        });
+    });
+
+    describe('filterUnique', function() {
+
+        it('should return array containing unique values', function() {
+            expect(
+                Lib.filterUnique(['a', 'a', 'b', 'b'])
+            )
+            .toEqual(['a', 'b']);
+
+            expect(
+                Lib.filterUnique(['1', ['1'], 1])
+            )
+            .toEqual(['1']);
+
+            expect(
+                Lib.filterUnique([1, '1', [1]])
+            )
+            .toEqual([1]);
+
+            expect(
+                Lib.filterUnique([ { a: 1 }, { b: 2 }])
+            )
+            .toEqual([{ a: 1 }]);
+
+            expect(
+                Lib.filterUnique([null, undefined, null, null, undefined])
+            )
+            .toEqual([null, undefined]);
+        });
+
     });
 
     describe('numSeparate', function() {
@@ -1399,6 +1384,219 @@ describe('Test lib.js:', function() {
             expect(function() {
                 Lib.numSeparate(1234, '');
             }).toThrowError('Separator string required for formatting!');
+        });
+    });
+
+    describe('cleanNumber', function() {
+        it('should return finite numbers untouched', function() {
+            [
+                0, 1, 2, 1234.567,
+                -1, -100, -999.999,
+                Number.MAX_VALUE, Number.MIN_VALUE, Number.EPSILON,
+                -Number.MAX_VALUE, -Number.MIN_VALUE, -Number.EPSILON
+            ].forEach(function(v) {
+                expect(Lib.cleanNumber(v)).toBe(v);
+            });
+        });
+
+        it('should accept number strings with arbitrary cruft on the outside', function() {
+            [
+                ['0', 0],
+                ['1', 1],
+                ['1.23', 1.23],
+                ['-100.001', -100.001],
+                ['  $4.325  #%\t', 4.325],
+                [' " #1" ', 1],
+                [' \'\n \r -9.2e7   \t\' ', -9.2e7],
+                ['1,690,000', 1690000],
+                ['1 690 000', 1690000],
+                ['2 2', 22],
+                ['$5,162,000.00', 5162000],
+                [' $1,410,000.00 ', 1410000],
+            ].forEach(function(v) {
+                expect(Lib.cleanNumber(v[0])).toBe(v[1], v[0]);
+            });
+        });
+
+        it('should not accept other objects or cruft in the middle', function() {
+            [
+                NaN, Infinity, -Infinity, null, undefined, new Date(), '',
+                ' ', '\t', '2\t2', '2%2', '2$2', {1: 2}, [1], ['1'], {}, []
+            ].forEach(function(v) {
+                expect(Lib.cleanNumber(v)).toBeUndefined(v);
+            });
+        });
+    });
+
+    describe('isPlotDiv', function() {
+        it('should work on plain objects', function() {
+            expect(Lib.isPlotDiv({})).toBe(false);
+        });
+    });
+
+    describe('isD3Selection', function() {
+        var gd;
+
+        beforeEach(function() {
+            gd = createGraphDiv();
+        });
+
+        afterEach(function() {
+            destroyGraphDiv();
+            Plotly.setPlotConfig({ queueLength: 0 });
+        });
+
+        it('recognizes real and duck typed selections', function() {
+            var yesSelections = [
+                d3.select(gd),
+                // this is what got us into trouble actually - d3 selections can
+                // contain non-nodes - say for example d3 selections! then they
+                // don't work correctly. But it makes a convenient test!
+                d3.select(1),
+                // just showing what we actually do in this function: duck type
+                // using the `classed` method.
+                {classed: function(v) { return !!v; }}
+            ];
+
+            yesSelections.forEach(function(v) {
+                expect(Lib.isD3Selection(v)).toBe(true, v);
+            });
+        });
+
+        it('rejects non-selections', function() {
+            var notSelections = [
+                1,
+                'path',
+                [1, 2],
+                [[1, 2]],
+                {classed: 1},
+                gd
+            ];
+
+            notSelections.forEach(function(v) {
+                expect(Lib.isD3Selection(v)).toBe(false, v);
+            });
+        });
+    });
+
+    describe('loggers', function() {
+        var stashConsole,
+            stashLogLevel;
+
+        function consoleFn(name, hasApply, messages) {
+            var out = function() {
+                var args = [];
+                for(var i = 0; i < arguments.length; i++) args.push(arguments[i]);
+                messages.push([name, args]);
+            };
+
+            if(!hasApply) out.apply = undefined;
+
+            return out;
+        }
+
+        function mockConsole(hasApply, hasTrace) {
+            var out = {
+                MESSAGES: []
+            };
+            out.log = consoleFn('log', hasApply, out.MESSAGES);
+            out.error = consoleFn('error', hasApply, out.MESSAGES);
+
+            if(hasTrace) out.trace = consoleFn('trace', hasApply, out.MESSAGES);
+
+            return out;
+        }
+
+        beforeEach(function() {
+            stashConsole = window.console;
+            stashLogLevel = config.logging;
+        });
+
+        afterEach(function() {
+            window.console = stashConsole;
+            config.logging = stashLogLevel;
+        });
+
+        it('emits one console message if apply is available', function() {
+            var c = window.console = mockConsole(true, true);
+            config.logging = 2;
+
+            Lib.log('tick', 'tock', 'tick', 'tock', 1);
+            Lib.warn('I\'m', 'a', 'little', 'cuckoo', 'clock', [1, 2]);
+            Lib.error('cuckoo!', 'cuckoo!!!', {a: 1, b: 2});
+
+            expect(c.MESSAGES).toEqual([
+                ['trace', ['LOG:', 'tick', 'tock', 'tick', 'tock', 1]],
+                ['trace', ['WARN:', 'I\'m', 'a', 'little', 'cuckoo', 'clock', [1, 2]]],
+                ['error', ['ERROR:', 'cuckoo!', 'cuckoo!!!', {a: 1, b: 2}]]
+            ]);
+        });
+
+        it('falls back on console.log if no trace', function() {
+            var c = window.console = mockConsole(true, false);
+            config.logging = 2;
+
+            Lib.log('Hi');
+            Lib.warn(42);
+
+            expect(c.MESSAGES).toEqual([
+                ['log', ['LOG:', 'Hi']],
+                ['log', ['WARN:', 42]]
+            ]);
+        });
+
+        it('falls back on separate calls if no apply', function() {
+            var c = window.console = mockConsole(false, false);
+            config.logging = 2;
+
+            Lib.log('tick', 'tock', 'tick', 'tock', 1);
+            Lib.warn('I\'m', 'a', 'little', 'cuckoo', 'clock', [1, 2]);
+            Lib.error('cuckoo!', 'cuckoo!!!', {a: 1, b: 2});
+
+            expect(c.MESSAGES).toEqual([
+                ['log', ['LOG:']],
+                ['log', ['tick']],
+                ['log', ['tock']],
+                ['log', ['tick']],
+                ['log', ['tock']],
+                ['log', [1]],
+                ['log', ['WARN:']],
+                ['log', ['I\'m']],
+                ['log', ['a']],
+                ['log', ['little']],
+                ['log', ['cuckoo']],
+                ['log', ['clock']],
+                ['log', [[1, 2]]],
+                ['error', ['ERROR:']],
+                ['error', ['cuckoo!']],
+                ['error', ['cuckoo!!!']],
+                ['error', [{a: 1, b: 2}]]
+            ]);
+        });
+
+        it('omits .log at log level 1', function() {
+            var c = window.console = mockConsole(true, true);
+            config.logging = 1;
+
+            Lib.log(1);
+            Lib.warn(2);
+            Lib.error(3);
+
+            expect(c.MESSAGES).toEqual([
+                ['trace', ['WARN:', 2]],
+                ['error', ['ERROR:', 3]]
+            ]);
+        });
+
+        it('logs nothing at log level 0', function() {
+            var c = window.console = mockConsole(true, true);
+            config.logging = 0;
+
+            Lib.log(1);
+            Lib.warn(2);
+            Lib.error(3);
+
+            expect(c.MESSAGES).toEqual([]);
         });
     });
 });
@@ -1442,23 +1640,27 @@ describe('Queue', function() {
 
         Plotly.plot(gd, [{
             y: [2, 1, 2]
-        }]).then(function() {
+        }])
+        .then(function() {
             expect(gd.undoQueue).toBeUndefined();
 
             return Plotly.restyle(gd, 'marker.color', 'red');
-        }).then(function() {
+        })
+        .then(function() {
             expect(gd.undoQueue.index).toEqual(1);
             expect(gd.undoQueue.queue[0].undo.args[0][1]['marker.color']).toEqual([undefined]);
             expect(gd.undoQueue.queue[0].redo.args[0][1]['marker.color']).toEqual('red');
 
             return Plotly.relayout(gd, 'title', 'A title');
-        }).then(function() {
+        })
+        .then(function() {
             expect(gd.undoQueue.index).toEqual(2);
             expect(gd.undoQueue.queue[1].undo.args[0][1].title).toEqual(undefined);
             expect(gd.undoQueue.queue[1].redo.args[0][1].title).toEqual('A title');
 
             return Plotly.restyle(gd, 'mode', 'markers');
-        }).then(function() {
+        })
+        .then(function() {
             expect(gd.undoQueue.index).toEqual(2);
             expect(gd.undoQueue.queue[2]).toBeUndefined();
 
@@ -1468,7 +1670,40 @@ describe('Queue', function() {
             expect(gd.undoQueue.queue[0].undo.args[0][1].title).toEqual(undefined);
             expect(gd.undoQueue.queue[0].redo.args[0][1].title).toEqual('A title');
 
-            done();
-        });
+            return Plotly.restyle(gd, 'transforms[0]', { type: 'filter' });
+        })
+        .then(function() {
+            expect(gd.undoQueue.queue[1].undo.args[0][1])
+                .toEqual({ 'transforms[0]': null });
+            expect(gd.undoQueue.queue[1].redo.args[0][1])
+                .toEqual({ 'transforms[0]': { type: 'filter' } });
+
+            return Plotly.relayout(gd, 'updatemenus[0]', { buttons: [] });
+        })
+        .then(function() {
+            expect(gd.undoQueue.queue[1].undo.args[0][1])
+                .toEqual({ 'updatemenus[0]': null });
+            expect(gd.undoQueue.queue[1].redo.args[0][1])
+                .toEqual({ 'updatemenus[0]': { buttons: [] } });
+
+            return Plotly.relayout(gd, 'updatemenus[0]', null);
+        })
+        .then(function() {
+            // buttons have been stripped out because it's an empty container array...
+            expect(gd.undoQueue.queue[1].undo.args[0][1])
+                .toEqual({ 'updatemenus[0]': {} });
+            expect(gd.undoQueue.queue[1].redo.args[0][1])
+                .toEqual({ 'updatemenus[0]': null });
+
+            return Plotly.restyle(gd, 'transforms[0]', null);
+        })
+        .then(function() {
+            expect(gd.undoQueue.queue[1].undo.args[0][1])
+                .toEqual({ 'transforms[0]': [ { type: 'filter' } ]});
+            expect(gd.undoQueue.queue[1].redo.args[0][1])
+                .toEqual({ 'transforms[0]': null });
+        })
+        .catch(failTest)
+        .then(done);
     });
 });

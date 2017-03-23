@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -11,9 +11,7 @@
 
 var d3 = require('d3');
 
-var Plotly = require('../../plotly');
 var Plots = require('../../plots/plots');
-var Lib = require('../../lib');
 var Color = require('../color');
 var Drawing = require('../drawing');
 var svgTextUtils = require('../../lib/svg_text_utils');
@@ -52,6 +50,9 @@ module.exports = function draw(gd) {
     sliderGroups.exit().each(function(sliderOpts) {
         d3.select(this).remove();
 
+        sliderOpts._commandObserver.remove();
+        delete sliderOpts._commandObserver;
+
         Plots.autoMargin(gd, constants.autoMarginIdRoot + sliderOpts._index);
     });
 
@@ -65,12 +66,28 @@ module.exports = function draw(gd) {
         // If it has fewer than two options, it's not really a slider:
         if(sliderOpts.steps.length < 2) return;
 
+        var gSlider = d3.select(this);
+
         computeLabelSteps(sliderOpts);
+
+        Plots.manageCommandObserver(gd, sliderOpts, sliderOpts.steps, function(data) {
+            // NB: Same as below. This is *not* always the same as sliderOpts since
+            // if a new set of steps comes in, the reference in this callback would
+            // be invalid. We need to refetch it from the slider group, which is
+            // the join data that creates this slider. So if this slider still exists,
+            // the group should be valid, *to the best of my knowledge.* If not,
+            // we'd have to look it up by d3 data join index/key.
+            var opts = gSlider.data()[0];
+
+            if(opts.active === data.index) return;
+            if(opts._dragging) return;
+
+            setActive(gd, gSlider, opts, data.index, false, true);
+        });
 
         drawSlider(gd, d3.select(this), sliderOpts);
 
         // makeInputProxy(gd, d3.select(this), sliderOpts);
-
     });
 };
 
@@ -215,6 +232,15 @@ function findDimensions(gd, sliderOpts) {
 }
 
 function drawSlider(gd, sliderGroup, sliderOpts) {
+    // This is related to the other long notes in this file regarding what happens
+    // when slider steps disappear. This particular fix handles what happens when
+    // the *current* slider step is removed. The drawing functions will error out
+    // when they fail to find it, so the fix for now is that it will just draw the
+    // slider in the first position but will not execute the command.
+    if(sliderOpts.active >= sliderOpts.steps.length) {
+        sliderOpts.active = 0;
+    }
+
     // These are carefully ordered for proper z-ordering:
     sliderGroup
         .call(drawCurrentValue, sliderOpts)
@@ -225,9 +251,11 @@ function drawSlider(gd, sliderGroup, sliderOpts) {
         .call(drawGrip, gd, sliderOpts);
 
     // Position the rectangle:
-    Lib.setTranslate(sliderGroup, sliderOpts.lx + sliderOpts.pad.l, sliderOpts.ly + sliderOpts.pad.t);
+    Drawing.setTranslate(sliderGroup, sliderOpts.lx + sliderOpts.pad.l, sliderOpts.ly + sliderOpts.pad.t);
 
-    setActive(gd, sliderGroup, sliderOpts, sliderOpts.active, false, false);
+    sliderGroup.call(setGripPosition, sliderOpts, sliderOpts.active / (sliderOpts.steps.length - 1), false);
+    sliderGroup.call(drawCurrentValue, sliderOpts);
+
 }
 
 function drawCurrentValue(sliderGroup, sliderOpts, valueOverride) {
@@ -239,9 +267,9 @@ function drawCurrentValue(sliderGroup, sliderOpts, valueOverride) {
 
     switch(sliderOpts.currentvalue.xanchor) {
         case 'right':
-        // This is anchored left and adjusted by the width of the longest label
-        // so that the prefix doesn't move. The goal of this is to emphasize
-        // what's actually changing and make the update less distracting.
+            // This is anchored left and adjusted by the width of the longest label
+            // so that the prefix doesn't move. The goal of this is to emphasize
+            // what's actually changing and make the update less distracting.
             x0 = sliderOpts.inputAreaLength - constants.currentValueInset - sliderOpts.currentValueMaxWidth;
             textAnchor = 'left';
             break;
@@ -276,7 +304,7 @@ function drawCurrentValue(sliderGroup, sliderOpts, valueOverride) {
         .text(str)
         .call(svgTextUtils.convertToTspans);
 
-    Lib.setTranslate(text, x0, sliderOpts.currentValueHeight);
+    Drawing.setTranslate(text, x0, sliderOpts.currentValueHeight);
 
     return text;
 }
@@ -337,7 +365,7 @@ function drawLabelGroup(sliderGroup, sliderOpts) {
 
         item.call(drawLabel, d, sliderOpts);
 
-        Lib.setTranslate(item,
+        Drawing.setTranslate(item,
             normalizedValueToPosition(sliderOpts, d.fraction),
             constants.tickOffset + sliderOpts.ticklen + sliderOpts.labelHeight + constants.labelOffset + sliderOpts.currentValueTotalHeight
         );
@@ -354,12 +382,20 @@ function handleInput(gd, sliderGroup, sliderOpts, normalizedPosition, doTransiti
 }
 
 function setActive(gd, sliderGroup, sliderOpts, index, doCallback, doTransition) {
+    var previousActive = sliderOpts.active;
     sliderOpts._input.active = sliderOpts.active = index;
 
     var step = sliderOpts.steps[sliderOpts.active];
 
     sliderGroup.call(setGripPosition, sliderOpts, sliderOpts.active / (sliderOpts.steps.length - 1), doTransition);
     sliderGroup.call(drawCurrentValue, sliderOpts);
+
+    gd.emit('plotly_sliderchange', {
+        slider: sliderOpts,
+        step: sliderOpts.steps[sliderOpts.active],
+        interaction: doCallback,
+        previousActive: previousActive
+    });
 
     if(step && step.method && doCallback) {
         if(sliderGroup._nextMethod) {
@@ -371,19 +407,9 @@ function setActive(gd, sliderGroup, sliderOpts, index, doCallback, doTransition)
             sliderGroup._nextMethod = {step: step, doCallback: doCallback, doTransition: doTransition};
             sliderGroup._nextMethodRaf = window.requestAnimationFrame(function() {
                 var _step = sliderGroup._nextMethod.step;
-                var args = _step.args;
                 if(!_step.method) return;
 
-                sliderOpts._invokingCommand = true;
-                Plotly[_step.method](gd, args[0], args[1], args[2]).then(function() {
-                    sliderOpts._invokingCommand = false;
-                }, function() {
-                    sliderOpts._invokingCommand = false;
-
-                    // This is not a disaster. Some methods like `animate` reject if interrupted
-                    // and *should* nicely log a warning.
-                    Lib.warn('Warning: Plotly.' + _step.method + ' was called and rejected.');
-                });
+                Plots.executeAPICommand(gd, _step.method, _step.args);
 
                 sliderGroup._nextMethod = null;
                 sliderGroup._nextMethodRaf = null;
@@ -392,11 +418,23 @@ function setActive(gd, sliderGroup, sliderOpts, index, doCallback, doTransition)
     }
 }
 
-function attachGripEvents(item, gd, sliderGroup, sliderOpts) {
+function attachGripEvents(item, gd, sliderGroup) {
     var node = sliderGroup.node();
     var $gd = d3.select(gd);
 
+    // NB: This is *not* the same as sliderOpts itself! These callbacks
+    // are in a closure so this array won't actually be correct if the
+    // steps have changed since this was initialized. The sliderGroup,
+    // however, has not changed since that *is* the slider, so it must
+    // be present to receive mouse events.
+    function getSliderOpts() {
+        return sliderGroup.data()[0];
+    }
+
     item.on('mousedown', function() {
+        var sliderOpts = getSliderOpts();
+        gd.emit('plotly_sliderstart', {slider: sliderOpts});
+
         var grip = sliderGroup.select('.' + constants.gripRectClass);
 
         d3.event.stopPropagation();
@@ -405,16 +443,25 @@ function attachGripEvents(item, gd, sliderGroup, sliderOpts) {
 
         var normalizedPosition = positionToNormalizedValue(sliderOpts, d3.mouse(node)[0]);
         handleInput(gd, sliderGroup, sliderOpts, normalizedPosition, true);
+        sliderOpts._dragging = true;
 
         $gd.on('mousemove', function() {
+            var sliderOpts = getSliderOpts();
             var normalizedPosition = positionToNormalizedValue(sliderOpts, d3.mouse(node)[0]);
             handleInput(gd, sliderGroup, sliderOpts, normalizedPosition, false);
         });
 
         $gd.on('mouseup', function() {
+            var sliderOpts = getSliderOpts();
+            sliderOpts._dragging = false;
             grip.call(Color.fill, sliderOpts.bgcolor);
             $gd.on('mouseup', null);
             $gd.on('mousemove', null);
+
+            gd.emit('plotly_sliderend', {
+                slider: sliderOpts,
+                step: sliderOpts.steps[sliderOpts.active]
+            });
         });
     });
 }
@@ -441,7 +488,7 @@ function drawTicks(sliderGroup, sliderOpts) {
             .attr({height: isMajor ? sliderOpts.ticklen : sliderOpts.minorticklen})
             .call(Color.fill, isMajor ? sliderOpts.tickcolor : sliderOpts.tickcolor);
 
-        Lib.setTranslate(item,
+        Drawing.setTranslate(item,
             normalizedValueToPosition(sliderOpts, i / (sliderOpts.steps.length - 1)) - 0.5 * sliderOpts.tickwidth,
             (isMajor ? constants.tickOffset : constants.minorTickOffset) + sliderOpts.currentValueTotalHeight
         );
@@ -467,14 +514,18 @@ function setGripPosition(sliderGroup, sliderOpts, position, doTransition) {
 
     var x = normalizedValueToPosition(sliderOpts, position);
 
+    // If this is true, then *this component* is already invoking its own command
+    // and has triggered its own animation.
+    if(sliderOpts._invokingCommand) return;
+
     var el = grip;
-    if(doTransition && sliderOpts.transition.duration > 0 && !sliderOpts._invokingCommand) {
+    if(doTransition && sliderOpts.transition.duration > 0) {
         el = el.transition()
             .duration(sliderOpts.transition.duration)
             .ease(sliderOpts.transition.easing);
     }
 
-    // Lib.setTranslate doesn't work here becasue of the transition duck-typing.
+    // Drawing.setTranslate doesn't work here becasue of the transition duck-typing.
     // It's also not necessary because there are no other transitions to preserve.
     el.attr('transform', 'translate(' + (x - constants.gripWidth * 0.5) + ',' + (sliderOpts.currentValueTotalHeight) + ')');
 }
@@ -506,7 +557,7 @@ function drawTouchRect(sliderGroup, gd, sliderOpts) {
         .call(Color.fill, sliderOpts.bgcolor)
         .attr('opacity', 0);
 
-    Lib.setTranslate(rect, 0, sliderOpts.currentValueTotalHeight);
+    Drawing.setTranslate(rect, 0, sliderOpts.currentValueTotalHeight);
 }
 
 function drawRail(sliderGroup, sliderOpts) {
@@ -529,7 +580,7 @@ function drawRail(sliderGroup, sliderOpts) {
         .call(Color.fill, sliderOpts.bgcolor)
         .style('stroke-width', sliderOpts.borderwidth + 'px');
 
-    Lib.setTranslate(rect,
+    Drawing.setTranslate(rect,
         constants.railInset,
         (sliderOpts.inputAreaWidth - constants.railWidth) * 0.5 + sliderOpts.currentValueTotalHeight
     );

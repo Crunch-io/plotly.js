@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -9,14 +9,21 @@
 
 'use strict';
 
-module.exports = function filterVisible(dataIn) {
-    var dataOut = [];
+/** Filter out object items with visible !== true
+ *  insider array container.
+ *
+ *  @param {array of objects} container
+ *  @return {array of objects} of length <= container
+ *
+ */
+module.exports = function filterVisible(container) {
+    var out = [];
 
-    for(var i = 0; i < dataIn.length; i++) {
-        var trace = dataIn[i];
+    for(var i = 0; i < container.length; i++) {
+        var item = container[i];
 
-        if(trace.visible === true) dataOut.push(trace);
+        if(item.visible === true) out.push(item);
     }
 
-    return dataOut;
+    return out;
 };

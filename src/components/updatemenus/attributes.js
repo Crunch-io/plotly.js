@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -14,7 +14,7 @@ var extendFlat = require('../../lib/extend').extendFlat;
 var padAttrs = require('../../plots/pad_attributes');
 
 var buttonsAttrs = {
-    _isLinkedToArray: true,
+    _isLinkedToArray: 'button',
 
     method: {
         valType: 'enumerated',
@@ -48,7 +48,8 @@ var buttonsAttrs = {
 };
 
 module.exports = {
-    _isLinkedToArray: true,
+    _isLinkedToArray: 'updatemenu',
+    _arrayAttrRegexps: [/^updatemenus\[(0|[1-9][0-9]+)\]\.buttons/],
 
     visible: {
         valType: 'boolean',

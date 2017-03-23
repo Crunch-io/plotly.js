@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -9,12 +9,11 @@
 
 'use strict';
 
-var d3 = require('d3');
 var tinycolor = require('tinycolor2');
 
 var Registry = require('../../registry');
 var Lib = require('../../lib');
-var getColorscale = require('../../components/colorscale/get_scale');
+var Colorscale = require('../../components/colorscale');
 var xmlnsNamespaces = require('../../constants/xmlns_namespaces');
 
 var maxRowLength = require('./max_row_length');
@@ -37,6 +36,8 @@ function plotOne(gd, plotinfo, cd) {
 
     // in case this used to be a contour map
     fullLayout._paper.selectAll('.contour' + uid).remove();
+    fullLayout._infolayer.selectAll('g.rangeslider-container')
+        .selectAll('.contour' + uid).remove();
 
     if(trace.visible !== true) {
         fullLayout._paper.selectAll('.' + id).remove();
@@ -45,9 +46,6 @@ function plotOne(gd, plotinfo, cd) {
     }
 
     var z = cd[0].z,
-        min = trace.zmin,
-        max = trace.zmax,
-        scl = getColorscale(trace.colorscale),
         x = cd[0].x,
         y = cd[0].y,
         isContour = Registry.traceIs(trace, 'contour'),
@@ -170,15 +168,14 @@ function plotOne(gd, plotinfo, cd) {
     canvas.height = canvasH;
     var context = canvas.getContext('2d');
 
-    // interpolate for color scale
-    // use an array instead of color strings, so we preserve alpha
-    var s = d3.scale.linear()
-        .domain(scl.map(function(si) { return si[0]; }))
-        .range(scl.map(function(si) {
-            var c = tinycolor(si[1]).toRgb();
-            return [c.r, c.g, c.b, c.a];
-        }))
-        .clamp(true);
+    var sclFunc = Colorscale.makeColorScaleFunc(
+        Colorscale.extractScale(
+            trace.colorscale,
+            trace.zmin,
+            trace.zmax
+        ),
+        { noNumericCheck: true, returnArray: true }
+    );
 
     // map brick boundaries to image pixels
     var xpx,
@@ -289,7 +286,7 @@ function plotOne(gd, plotinfo, cd) {
 
     function setColor(v, pixsize) {
         if(v !== undefined) {
-            var c = s((v - min) / (max - min));
+            var c = sclFunc(v);
             c[0] = Math.round(c[0]);
             c[1] = Math.round(c[1]);
             c[2] = Math.round(c[2]);
@@ -342,7 +339,14 @@ function plotOne(gd, plotinfo, cd) {
 
     if(zsmooth) { // best or fast, works fastest with imageData
         var pxIndex = 0,
+            pixels;
+
+        try {
             pixels = new Uint8Array(imageWidth * imageHeight * 4);
+        }
+        catch(e) {
+            pixels = new Array(imageWidth * imageHeight * 4);
+        }
 
         if(zsmooth === 'best') {
             var xPixArray = new Array(x.length),
@@ -384,7 +388,17 @@ function plotOne(gd, plotinfo, cd) {
         }
 
         var imageData = context.createImageData(imageWidth, imageHeight);
-        imageData.data.set(pixels);
+        try {
+            imageData.data.set(pixels);
+        }
+        catch(e) {
+            var pxArray = imageData.data,
+                dlen = pxArray.length;
+            for(j = 0; j < dlen; j ++) {
+                pxArray[j] = pixels[j];
+            }
+        }
+
         context.putImageData(imageData, 0, 0);
     } else { // zsmooth = false -> filling potentially large bricks works fastest with fillRect
         for(j = 0; j < m; j++) {

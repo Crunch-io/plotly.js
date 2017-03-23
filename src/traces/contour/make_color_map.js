@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -10,19 +10,18 @@
 'use strict';
 
 var d3 = require('d3');
-
-var getColorscale = require('../../components/colorscale/get_scale');
-
+var Colorscale = require('../../components/colorscale');
+var endPlus = require('./end_plus');
 
 module.exports = function makeColorMap(trace) {
     var contours = trace.contours,
         start = contours.start,
-        end = contours.end,
+        end = endPlus(contours),
         cs = contours.size || 1,
-        nc = Math.floor((end + cs / 10 - start) / cs) + 1,
+        nc = Math.floor((end - start) / cs) + 1,
         extra = contours.coloring === 'lines' ? 0 : 1;
 
-    var scl = getColorscale(trace.colorscale),
+    var scl = trace.colorscale,
         len = scl.length;
 
     var domain = new Array(len),
@@ -69,10 +68,10 @@ module.exports = function makeColorMap(trace) {
         }
     }
 
-    var colorMap = d3.scale.linear()
-        .interpolate(d3.interpolateRgb)
-        .domain(domain)
-        .range(range);
-
-    return colorMap;
+    return Colorscale.makeColorScaleFunc({
+        domain: domain,
+        range: range,
+    }, {
+        noNumericCheck: true
+    });
 };

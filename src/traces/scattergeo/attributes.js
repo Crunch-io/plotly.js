@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -77,6 +77,7 @@ module.exports = {
         sizemin: scatterMarkerAttrs.sizemin,
         sizemode: scatterMarkerAttrs.sizemode,
         showscale: scatterMarkerAttrs.showscale,
+        colorbar: scatterMarkerAttrs.colorbar,
         line: extendFlat({},
             {width: scatterMarkerLineAttrs.width},
             colorAttributes('marker.line')
@@ -101,9 +102,5 @@ module.exports = {
 
     hoverinfo: extendFlat({}, plotAttrs.hoverinfo, {
         flags: ['lon', 'lat', 'location', 'text', 'name']
-    }),
-
-    _nestedModules: {
-        'marker.colorbar': 'Colorbar'
-    }
+    })
 };

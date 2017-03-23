@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -27,6 +27,7 @@ module.exports = {
     y: scatterAttrs.y,
     y0: scatterAttrs.y0,
     dy: scatterAttrs.dy,
+
     text: extendFlat({}, scatterAttrs.text, {
         description: [
             'Sets text elements associated with each (x,y) pair to appear on hover.',
@@ -71,6 +72,7 @@ module.exports = {
         sizemode: scatterMarkerAttrs.sizemode,
         opacity: scatterMarkerAttrs.opacity,
         showscale: scatterMarkerAttrs.showscale,
+        colorbar: scatterMarkerAttrs.colorbar,
         line: extendDeep({}, colorAttributes('marker.line'), {
             width: scatterMarkerLineAttrs.width
         })
@@ -80,9 +82,7 @@ module.exports = {
         values: ['none', 'tozeroy', 'tozerox']
     }),
     fillcolor: scatterAttrs.fillcolor,
-    _nestedModules: {
-        'error_x': 'ErrorBars',
-        'error_y': 'ErrorBars',
-        'marker.colorbar': 'Colorbar'
-    }
+
+    error_y: scatterAttrs.error_y,
+    error_x: scatterAttrs.error_x
 };

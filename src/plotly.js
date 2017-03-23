@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -25,19 +25,6 @@ exports.defaultConfig = require('./plot_api/plot_config');
 exports.Plots = require('./plots/plots');
 exports.Axes = require('./plots/cartesian/axes');
 exports.Fx = require('./plots/cartesian/graph_interact');
-
-// components
-exports.Color = require('./components/color');
-exports.Drawing = require('./components/drawing');
-exports.Colorscale = require('./components/colorscale');
-exports.Colorbar = require('./components/colorbar');
-exports.ErrorBars = require('./components/errorbars');
-exports.Annotations = require('./components/annotations');
-exports.Shapes = require('./components/shapes');
-exports.Legend = require('./components/legend');
-exports.Images = require('./components/images');
-exports.UpdateMenus = require('./components/updatemenus');
-exports.Sliders = require('./components/sliders');
 exports.ModeBar = require('./components/modebar');
 
 // plot api

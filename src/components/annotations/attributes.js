@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -15,7 +15,16 @@ var extendFlat = require('../../lib/extend').extendFlat;
 
 
 module.exports = {
-    _isLinkedToArray: true,
+    _isLinkedToArray: 'annotation',
+
+    visible: {
+        valType: 'boolean',
+        role: 'info',
+        dflt: true,
+        description: [
+            'Determines whether or not this annotation is visible.'
+        ].join(' ')
+    },
 
     text: {
         valType: 'string',
@@ -131,28 +140,39 @@ module.exports = {
         role: 'style',
         description: 'Sets the width (in px) of annotation arrow.'
     },
-    ax: {
+    standoff: {
         valType: 'number',
-        dflt: -10,
+        min: 0,
+        dflt: 0,
+        role: 'style',
+        description: [
+            'Sets a distance, in pixels, to move the arrowhead away from the',
+            'position it is pointing at, for example to point at the edge of',
+            'a marker independent of zoom.'
+        ].join(' ')
+    },
+    ax: {
+        valType: 'any',
         role: 'info',
         description: [
             'Sets the x component of the arrow tail about the arrow head.',
             'If `axref` is `pixel`, a positive (negative) ',
             'component corresponds to an arrow pointing',
             'from right to left (left to right).',
-            'If `axref` is an axis, this is a value on that axis.'
+            'If `axref` is an axis, this is an absolute value on that axis,',
+            'like `x`, NOT a relative value.'
         ].join(' ')
     },
     ay: {
-        valType: 'number',
-        dflt: -30,
+        valType: 'any',
         role: 'info',
         description: [
             'Sets the y component of the arrow tail about the arrow head.',
             'If `ayref` is `pixel`, a positive (negative) ',
             'component corresponds to an arrow pointing',
             'from bottom to top (top to bottom).',
-            'If `ayref` is an axis, this is a value on that axis.'
+            'If `ayref` is an axis, this is an absolute value on that axis,',
+            'like `y`, NOT a relative value.'
         ].join(' ')
     },
     axref: {
@@ -207,11 +227,18 @@ module.exports = {
         ].join(' ')
     },
     x: {
-        valType: 'number',
+        valType: 'any',
         role: 'info',
         description: [
             'Sets the annotation\'s x position.',
-            'Note that dates and categories are converted to numbers.'
+            'If the axis `type` is *log*, then you must take the',
+            'log of your desired range.',
+            'If the axis `type` is *date*, it should be date strings,',
+            'like date data, though Date objects and unix milliseconds',
+            'will be accepted and converted to strings.',
+            'If the axis `type` is *category*, it should be numbers,',
+            'using the scale where each category is assigned a serial',
+            'number from zero in the order it appears.'
         ].join(' ')
     },
     xanchor: {
@@ -220,7 +247,7 @@ module.exports = {
         dflt: 'auto',
         role: 'info',
         description: [
-            'Sets the annotation\'s horizontal position anchor',
+            'Sets the text box\'s horizontal position anchor',
             'This anchor binds the `x` position to the *left*, *center*',
             'or *right* of the annotation.',
             'For example, if `x` is set to 1, `xref` to *paper* and',
@@ -228,9 +255,9 @@ module.exports = {
             'annotation lines up with the right-most edge of the',
             'plotting area.',
             'If *auto*, the anchor is equivalent to *center* for',
-            'data-referenced annotations',
-            'whereas for paper-referenced, the anchor picked corresponds',
-            'to the closest side.'
+            'data-referenced annotations or if there is an arrow,',
+            'whereas for paper-referenced with no arrow, the anchor picked',
+            'corresponds to the closest side.'
         ].join(' ')
     },
     yref: {
@@ -250,11 +277,18 @@ module.exports = {
         ].join(' ')
     },
     y: {
-        valType: 'number',
+        valType: 'any',
         role: 'info',
         description: [
             'Sets the annotation\'s y position.',
-            'Note that dates and categories are converted to numbers.'
+            'If the axis `type` is *log*, then you must take the',
+            'log of your desired range.',
+            'If the axis `type` is *date*, it should be date strings,',
+            'like date data, though Date objects and unix milliseconds',
+            'will be accepted and converted to strings.',
+            'If the axis `type` is *category*, it should be numbers,',
+            'using the scale where each category is assigned a serial',
+            'number from zero in the order it appears.'
         ].join(' ')
     },
     yanchor: {
@@ -263,7 +297,7 @@ module.exports = {
         dflt: 'auto',
         role: 'info',
         description: [
-            'Sets the annotation\'s vertical position anchor',
+            'Sets the text box\'s vertical position anchor',
             'This anchor binds the `y` position to the *top*, *middle*',
             'or *bottom* of the annotation.',
             'For example, if `y` is set to 1, `yref` to *paper* and',
@@ -271,9 +305,45 @@ module.exports = {
             'annotation lines up with the top-most edge of the',
             'plotting area.',
             'If *auto*, the anchor is equivalent to *middle* for',
-            'data-referenced annotations',
-            'whereas for paper-referenced, the anchor picked corresponds',
-            'to the closest side.'
+            'data-referenced annotations or if there is an arrow,',
+            'whereas for paper-referenced with no arrow, the anchor picked',
+            'corresponds to the closest side.'
+        ].join(' ')
+    },
+    clicktoshow: {
+        valType: 'enumerated',
+        values: [false, 'onoff', 'onout'],
+        dflt: false,
+        role: 'style',
+        description: [
+            'Makes this annotation respond to clicks on the plot.',
+            'If you click a data point that exactly matches the `x` and `y`',
+            'values of this annotation, and it is hidden (visible: false),',
+            'it will appear. In *onoff* mode, you must click the same point',
+            'again to make it disappear, so if you click multiple points,',
+            'you can show multiple annotations. In *onout* mode, a click',
+            'anywhere else in the plot (on another data point or not) will',
+            'hide this annotation.',
+            'If you need to show/hide this annotation in response to different',
+            '`x` or `y` values, you can set `xclick` and/or `yclick`. This is',
+            'useful for example to label the side of a bar. To label markers',
+            'though, `standoff` is preferred over `xclick` and `yclick`.'
+        ].join(' ')
+    },
+    xclick: {
+        valType: 'any',
+        role: 'info',
+        description: [
+            'Toggle this annotation when clicking a data point whose `x` value',
+            'is `xclick` rather than the annotation\'s `x` value.'
+        ].join(' ')
+    },
+    yclick: {
+        valType: 'any',
+        role: 'info',
+        description: [
+            'Toggle this annotation when clicking a data point whose `y` value',
+            'is `yclick` rather than the annotation\'s `y` value.'
         ].join(' ')
     },
 

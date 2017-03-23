@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -12,7 +12,8 @@
 var d3 = require('d3');
 var Lib = require('../../lib');
 var Plots = require('../plots');
-var Axes = require('./axes');
+
+var axisIds = require('./axis_ids');
 var constants = require('./constants');
 
 exports.name = 'cartesian';
@@ -27,20 +28,21 @@ exports.attrRegex = constants.attrRegex;
 
 exports.attributes = require('./attributes');
 
+exports.layoutAttributes = require('./layout_attributes');
+
 exports.transitionAxes = require('./transition_axes');
 
 exports.plot = function(gd, traces, transitionOpts, makeOnCompleteCallback) {
-    var cdSubplot, cd, trace, i, j, k;
-
     var fullLayout = gd._fullLayout,
         subplots = Plots.getSubplotIds(fullLayout, 'cartesian'),
         calcdata = gd.calcdata,
-        modules = fullLayout._modules;
+        i;
 
+    // If traces is not provided, then it's a complete replot and missing
+    // traces are removed
     if(!Array.isArray(traces)) {
-      // If traces is not provided, then it's a complete replot and missing
-      // traces are removed
         traces = [];
+
         for(i = 0; i < calcdata.length; i++) {
             traces.push(i);
         }
@@ -51,11 +53,12 @@ exports.plot = function(gd, traces, transitionOpts, makeOnCompleteCallback) {
             subplotInfo = fullLayout._plots[subplot];
 
         // Get all calcdata for this subplot:
-        cdSubplot = [];
+        var cdSubplot = [];
         var pcd;
-        for(j = 0; j < calcdata.length; j++) {
-            cd = calcdata[j];
-            trace = cd[0].trace;
+
+        for(var j = 0; j < calcdata.length; j++) {
+            var cd = calcdata[j],
+                trace = cd[0].trace;
 
             // Skip trace if whitelist provided and it's not whitelisted:
             // if (Array.isArray(traces) && traces.indexOf(i) === -1) continue;
@@ -66,9 +69,12 @@ exports.plot = function(gd, traces, transitionOpts, makeOnCompleteCallback) {
                     // traces 0 and 2. Trace 1 also needs to be updated, otherwise its fill
                     // is outdated. So this retroactively adds the previous trace if the
                     // traces are interdependent.
-                    if(pcd &&
-                            ['tonextx', 'tonexty', 'tonext'].indexOf(trace.fill) !== -1 &&
-                            cdSubplot.indexOf(pcd) === -1) {
+                    if(
+                        pcd &&
+                        pcd[0].trace.xaxis + pcd[0].trace.yaxis === subplot &&
+                        ['tonextx', 'tonexty', 'tonext'].indexOf(trace.fill) !== -1 &&
+                        cdSubplot.indexOf(pcd) === -1
+                    ) {
                         cdSubplot.push(pcd);
                     }
 
@@ -81,37 +87,45 @@ exports.plot = function(gd, traces, transitionOpts, makeOnCompleteCallback) {
             }
         }
 
-        // remove old traces, then redraw everything
-        // TODO: scatterlayer is manually excluded from this since it knows how
-        // to update instead of fully removing and redrawing every time. The
-        // remaining plot traces should also be able to do this. Once implemented,
-        // we won't need this - which should sometimes be a big speedup.
-        if(subplotInfo.plot) {
-            subplotInfo.plot.selectAll('g:not(.scatterlayer)').selectAll('g.trace').remove();
-        }
-
-        // Plot all traces for each module at once:
-        for(j = 0; j < modules.length; j++) {
-            var _module = modules[j];
-
-            // skip over non-cartesian trace modules
-            if(_module.basePlotModule.name !== 'cartesian') continue;
-
-            // plot all traces of this type on this subplot at once
-            var cdModule = [];
-            for(k = 0; k < cdSubplot.length; k++) {
-                cd = cdSubplot[k];
-                trace = cd[0].trace;
-
-                if((trace._module === _module) && (trace.visible === true)) {
-                    cdModule.push(cd);
-                }
-            }
-
-            _module.plot(gd, subplotInfo, cdModule, transitionOpts, makeOnCompleteCallback);
-        }
+        plotOne(gd, subplotInfo, cdSubplot, transitionOpts, makeOnCompleteCallback);
     }
 };
+
+function plotOne(gd, plotinfo, cdSubplot, transitionOpts, makeOnCompleteCallback) {
+    var fullLayout = gd._fullLayout,
+        modules = fullLayout._modules;
+
+    // remove old traces, then redraw everything
+    //
+    // TODO: scatterlayer is manually excluded from this since it knows how
+    // to update instead of fully removing and redrawing every time. The
+    // remaining plot traces should also be able to do this. Once implemented,
+    // we won't need this - which should sometimes be a big speedup.
+    if(plotinfo.plot) {
+        plotinfo.plot.selectAll('g:not(.scatterlayer)').selectAll('g.trace').remove();
+    }
+
+    // plot all traces for each module at once
+    for(var j = 0; j < modules.length; j++) {
+        var _module = modules[j];
+
+        // skip over non-cartesian trace modules
+        if(_module.basePlotModule.name !== 'cartesian') continue;
+
+        // plot all traces of this type on this subplot at once
+        var cdModule = [];
+        for(var k = 0; k < cdSubplot.length; k++) {
+            var cd = cdSubplot[k],
+                trace = cd[0].trace;
+
+            if((trace._module === _module) && (trace.visible === true)) {
+                cdModule.push(cd);
+            }
+        }
+
+        _module.plot(gd, plotinfo, cdModule, transitionOpts, makeOnCompleteCallback);
+    }
+}
 
 exports.clean = function(newFullData, newFullLayout, oldFullData, oldFullLayout) {
     var oldModules = oldFullLayout._modules || [],
@@ -146,6 +160,11 @@ exports.clean = function(newFullData, newFullLayout, oldFullData, oldFullLayout)
                     .remove();
             }
         }
+
+        oldFullLayout._infolayer.selectAll('g.rangeslider-container')
+            .select('g.scatterlayer')
+            .selectAll('g.trace')
+            .remove();
     }
 
     var hadCartesian = (oldFullLayout._has && oldFullLayout._has('cartesian'));
@@ -153,9 +172,14 @@ exports.clean = function(newFullData, newFullLayout, oldFullData, oldFullLayout)
 
     if(hadCartesian && !hasCartesian) {
         var subplotLayers = oldFullLayout._cartesianlayer.selectAll('.subplot');
+        var axIds = axisIds.listIds({ _fullLayout: oldFullLayout });
 
         subplotLayers.call(purgeSubplotLayers, oldFullLayout);
         oldFullLayout._defs.selectAll('.axesclip').remove();
+
+        for(i = 0; i < axIds.length; i++) {
+            oldFullLayout._infolayer.select('.' + axIds[i] + 'title').remove();
+        }
     }
 };
 
@@ -198,9 +222,15 @@ exports.drawFramework = function(gd) {
     });
 };
 
+exports.rangePlot = function(gd, plotinfo, cdSubplot) {
+    makeSubplotLayer(plotinfo);
+    plotOne(gd, plotinfo, cdSubplot);
+    Plots.style(gd);
+};
+
 function makeSubplotData(gd) {
     var fullLayout = gd._fullLayout,
-        subplots = Axes.getSubplots(gd);
+        subplots = Object.keys(fullLayout._plots);
 
     var subplotData = [],
         overlays = [];
@@ -217,13 +247,13 @@ function makeSubplotData(gd) {
         // dimension that this one overlays to be an overlaid subplot,
         // the main plot must exist make sure we're not trying to
         // overlay on an axis that's already overlaying another
-        var xa2 = Axes.getFromId(gd, xa.overlaying) || xa;
+        var xa2 = axisIds.getFromId(gd, xa.overlaying) || xa;
         if(xa2 !== xa && xa2.overlaying) {
             xa2 = xa;
             xa.overlaying = false;
         }
 
-        var ya2 = Axes.getFromId(gd, ya.overlaying) || ya;
+        var ya2 = axisIds.getFromId(gd, ya.overlaying) || ya;
         if(ya2 !== ya && ya2.overlaying) {
             ya2 = ya;
             ya.overlaying = false;
@@ -275,9 +305,6 @@ function makeSubplotLayer(plotinfo) {
     }
 
     if(!plotinfo.mainplot) {
-        plotinfo.bg = joinLayer(plotgroup, 'rect', 'bg');
-        plotinfo.bg.style('stroke-width', 0);
-
         var backLayer = joinLayer(plotgroup, 'g', 'layer-subplot');
         plotinfo.shapelayer = joinLayer(backLayer, 'g', 'shapelayer');
         plotinfo.imagelayer = joinLayer(backLayer, 'g', 'imagelayer');

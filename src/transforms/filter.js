@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -9,7 +9,11 @@
 'use strict';
 
 var Lib = require('../lib');
+var Registry = require('../registry');
+var PlotSchema = require('../plot_api/plot_schema');
 var axisIds = require('../plots/cartesian/axis_ids');
+var autoType = require('../plots/cartesian/axis_autotype');
+var setConvert = require('../plots/cartesian/set_convert');
 
 var INEQUALITY_OPS = ['=', '<', '>=', '>', '<='];
 var INTERVAL_OPS = ['[]', '()', '[)', '(]', '][', ')(', '](', ')['];
@@ -27,18 +31,22 @@ exports.attributes = {
             'Determines whether this filter transform is enabled or disabled.'
         ].join(' ')
     },
-    filtersrc: {
+    target: {
         valType: 'string',
         strict: true,
         noBlank: true,
+        arrayOk: true,
         dflt: 'x',
         description: [
-            'Sets the variable in the parent trace object',
-            'by which the filter will be applied.',
+            'Sets the filter target by which the filter is applied.',
 
+            'If a string, *target* is assumed to be a reference to a data array',
+            'in the parent trace object.',
             'To filter about nested variables, use *.* to access them.',
-            'For example, set `filtersrc` to *marker.color* to filter',
-            'about the marker color array.'
+            'For example, set `target` to *marker.color* to filter',
+            'about the marker color array.',
+
+            'If an array, *target* is then the data array by which the filter is applied.'
         ].join(' ')
     },
     operation: {
@@ -77,7 +85,7 @@ exports.attributes = {
             'Sets the value or values by which to filter by.',
 
             'Values are expected to be in the same type as the data linked',
-            'to *filtersrc*.',
+            'to *target*.',
 
             'When `operation` is set to one of the inequality values',
             '(' + INEQUALITY_OPS + ')',
@@ -108,25 +116,42 @@ exports.supplyDefaults = function(transformIn) {
     if(enabled) {
         coerce('operation');
         coerce('value');
-        coerce('filtersrc');
+        coerce('target');
+
+        var handleCalendarDefaults = Registry.getComponentMethod('calendars', 'handleDefaults');
+        handleCalendarDefaults(transformIn, transformOut, 'valuecalendar', null);
+        handleCalendarDefaults(transformIn, transformOut, 'targetcalendar', null);
     }
 
     return transformOut;
 };
 
 exports.calcTransform = function(gd, trace, opts) {
-    var filtersrc = opts.filtersrc,
-        filtersrcOk = filtersrc && Array.isArray(Lib.nestedProperty(trace, filtersrc).get());
+    if(!opts.enabled) return;
 
-    if(!opts.enabled || !filtersrcOk) return;
+    var target = opts.target,
+        filterArray = getFilterArray(trace, target),
+        len = filterArray.length;
 
-    var dataToCoord = getDataToCoordFunc(gd, trace, filtersrc),
-        filterFunc = getFilterFunc(opts, dataToCoord);
+    if(!len) return;
 
-    var filterArr = Lib.nestedProperty(trace, filtersrc).get(),
-        len = filterArr.length;
+    var targetCalendar = opts.targetcalendar;
 
-    var arrayAttrs = Lib.findArrayAttributes(trace),
+    // even if you provide targetcalendar, if target is a string and there
+    // is a calendar attribute matching target it will get used instead.
+    if(typeof target === 'string') {
+        var attrTargetCalendar = Lib.nestedProperty(trace, target + 'calendar').get();
+        if(attrTargetCalendar) targetCalendar = attrTargetCalendar;
+    }
+
+    // if target points to an axis, use the type we already have for that
+    // axis to find the data type. Otherwise use the values to autotype.
+    var d2cTarget = (target === 'x' || target === 'y' || target === 'z') ?
+        target : filterArray;
+
+    var dataToCoord = getDataToCoordFunc(gd, trace, d2cTarget),
+        filterFunc = getFilterFunc(opts, dataToCoord, targetCalendar),
+        arrayAttrs = PlotSchema.findArrayAttributes(trace),
         originalArrays = {};
 
     // copy all original array attribute values,
@@ -147,7 +172,7 @@ exports.calcTransform = function(gd, trace, opts) {
     }
 
     for(var i = 0; i < len; i++) {
-        var v = filterArr[i];
+        var v = filterArray[i];
 
         if(!filterFunc(v)) continue;
 
@@ -157,23 +182,56 @@ exports.calcTransform = function(gd, trace, opts) {
     }
 };
 
-function getDataToCoordFunc(gd, trace, filtersrc) {
-    var ax = axisIds.getFromTrace(gd, trace, filtersrc);
+function getFilterArray(trace, target) {
+    if(typeof target === 'string' && target) {
+        var array = Lib.nestedProperty(trace, target).get();
 
-    // if 'filtersrc' has corresponding axis
+        return Array.isArray(array) ? array : [];
+    }
+    else if(Array.isArray(target)) return target.slice();
+
+    return false;
+}
+
+function getDataToCoordFunc(gd, trace, target) {
+    var ax;
+
+    // In the case of an array target, make a mock data array
+    // and call supplyDefaults to the data type and
+    // setup the data-to-calc method.
+    if(Array.isArray(target)) {
+        ax = {
+            type: autoType(target),
+            _categories: []
+        };
+
+        setConvert(ax);
+
+        if(ax.type === 'category') {
+            // build up ax._categories (usually done during ax.makeCalcdata()
+            for(var i = 0; i < target.length; i++) {
+                ax.d2c(target[i]);
+            }
+        }
+    }
+    else {
+        ax = axisIds.getFromTrace(gd, trace, target);
+    }
+
+    // if 'target' has corresponding axis
     // -> use setConvert method
     if(ax) return ax.d2c;
 
     // special case for 'ids'
     // -> cast to String
-    if(filtersrc === 'ids') return function(v) { return String(v); };
+    if(target === 'ids') return function(v) { return String(v); };
 
-    // otherwise
+    // otherwise (e.g. numeric-array of 'marker.color' or 'marker.size')
     // -> cast to Number
     return function(v) { return +v; };
 }
 
-function getFilterFunc(opts, d2c) {
+function getFilterFunc(opts, d2c, targetCalendar) {
     var operation = opts.operation,
         value = opts.value,
         hasArrayValue = Array.isArray(value);
@@ -182,93 +240,96 @@ function getFilterFunc(opts, d2c) {
         return array.indexOf(operation) !== -1;
     }
 
+    var d2cValue = function(v) { return d2c(v, 0, opts.valuecalendar); },
+        d2cTarget = function(v) { return d2c(v, 0, targetCalendar); };
+
     var coercedValue;
 
     if(isOperationIn(INEQUALITY_OPS)) {
-        coercedValue = hasArrayValue ? d2c(value[0]) : d2c(value);
+        coercedValue = hasArrayValue ? d2cValue(value[0]) : d2cValue(value);
     }
     else if(isOperationIn(INTERVAL_OPS)) {
         coercedValue = hasArrayValue ?
-            [d2c(value[0]), d2c(value[1])] :
-            [d2c(value), d2c(value)];
+            [d2cValue(value[0]), d2cValue(value[1])] :
+            [d2cValue(value), d2cValue(value)];
     }
     else if(isOperationIn(SET_OPS)) {
-        coercedValue = hasArrayValue ? value.map(d2c) : [d2c(value)];
+        coercedValue = hasArrayValue ? value.map(d2cValue) : [d2cValue(value)];
     }
 
     switch(operation) {
 
         case '=':
-            return function(v) { return d2c(v) === coercedValue; };
+            return function(v) { return d2cTarget(v) === coercedValue; };
 
         case '<':
-            return function(v) { return d2c(v) < coercedValue; };
+            return function(v) { return d2cTarget(v) < coercedValue; };
 
         case '<=':
-            return function(v) { return d2c(v) <= coercedValue; };
+            return function(v) { return d2cTarget(v) <= coercedValue; };
 
         case '>':
-            return function(v) { return d2c(v) > coercedValue; };
+            return function(v) { return d2cTarget(v) > coercedValue; };
 
         case '>=':
-            return function(v) { return d2c(v) >= coercedValue; };
+            return function(v) { return d2cTarget(v) >= coercedValue; };
 
         case '[]':
             return function(v) {
-                var cv = d2c(v);
+                var cv = d2cTarget(v);
                 return cv >= coercedValue[0] && cv <= coercedValue[1];
             };
 
         case '()':
             return function(v) {
-                var cv = d2c(v);
+                var cv = d2cTarget(v);
                 return cv > coercedValue[0] && cv < coercedValue[1];
             };
 
         case '[)':
             return function(v) {
-                var cv = d2c(v);
+                var cv = d2cTarget(v);
                 return cv >= coercedValue[0] && cv < coercedValue[1];
             };
 
         case '(]':
             return function(v) {
-                var cv = d2c(v);
+                var cv = d2cTarget(v);
                 return cv > coercedValue[0] && cv <= coercedValue[1];
             };
 
         case '][':
             return function(v) {
-                var cv = d2c(v);
+                var cv = d2cTarget(v);
                 return cv <= coercedValue[0] || cv >= coercedValue[1];
             };
 
         case ')(':
             return function(v) {
-                var cv = d2c(v);
+                var cv = d2cTarget(v);
                 return cv < coercedValue[0] || cv > coercedValue[1];
             };
 
         case '](':
             return function(v) {
-                var cv = d2c(v);
+                var cv = d2cTarget(v);
                 return cv <= coercedValue[0] || cv > coercedValue[1];
             };
 
         case ')[':
             return function(v) {
-                var cv = d2c(v);
+                var cv = d2cTarget(v);
                 return cv < coercedValue[0] || cv >= coercedValue[1];
             };
 
         case '{}':
             return function(v) {
-                return coercedValue.indexOf(d2c(v)) !== -1;
+                return coercedValue.indexOf(d2cTarget(v)) !== -1;
             };
 
         case '}{':
             return function(v) {
-                return coercedValue.indexOf(d2c(v)) === -1;
+                return coercedValue.indexOf(d2cTarget(v)) === -1;
             };
     }
 }

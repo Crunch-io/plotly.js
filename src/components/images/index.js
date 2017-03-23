@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -8,16 +8,14 @@
 
 'use strict';
 
-
-var draw = require('./draw');
-var supplyLayoutDefaults = require('./defaults');
-var attributes = require('./attributes');
-
-
 module.exports = {
     moduleType: 'component',
     name: 'images',
-    draw: draw,
-    layoutAttributes: attributes,
-    supplyLayoutDefaults: supplyLayoutDefaults
+
+    layoutAttributes: require('./attributes'),
+    supplyLayoutDefaults: require('./defaults'),
+
+    draw: require('./draw'),
+
+    convertCoords: require('./convert_coords')
 };

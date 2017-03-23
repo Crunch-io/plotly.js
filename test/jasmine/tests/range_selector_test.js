@@ -9,6 +9,7 @@ var createGraphDiv = require('../assets/create_graph_div');
 var destroyGraphDiv = require('../assets/destroy_graph_div');
 var getRectCenter = require('../assets/get_rect_center');
 var mouseEvent = require('../assets/mouse_event');
+var setConvert = require('@src/plots/cartesian/set_convert');
 
 
 describe('range selector defaults:', function() {
@@ -16,7 +17,7 @@ describe('range selector defaults:', function() {
 
     var handleDefaults = RangeSelector.handleDefaults;
 
-    function supply(containerIn, containerOut) {
+    function supply(containerIn, containerOut, calendar) {
         containerOut.domain = [0, 1];
 
         var layout = {
@@ -25,7 +26,7 @@ describe('range selector defaults:', function() {
 
         var counterAxes = ['yaxis'];
 
-        handleDefaults(containerIn, containerOut, layout, counterAxes);
+        handleDefaults(containerIn, containerOut, layout, counterAxes, calendar);
     }
 
     it('should set \'visible\' to false when no buttons are present', function() {
@@ -93,7 +94,7 @@ describe('range selector defaults:', function() {
         };
         var containerOut = {};
 
-        supply(containerIn, containerOut, {}, []);
+        supply(containerIn, containerOut);
 
         expect(containerOut.rangeselector.visible).toBe(true);
         expect(containerOut.rangeselector.buttons).toEqual([
@@ -113,7 +114,7 @@ describe('range selector defaults:', function() {
         };
         var containerOut = {};
 
-        supply(containerIn, containerOut, {}, []);
+        supply(containerIn, containerOut);
 
         expect(containerOut.rangeselector.buttons).toEqual([{
             step: 'all',
@@ -175,22 +176,81 @@ describe('range selector defaults:', function() {
         expect(containerOut.rangeselector.x).toEqual(0.5);
         expect(containerOut.rangeselector.y).toBeCloseTo(0.87);
     });
+
+    it('should not allow month/year todate with calendars other than Gregorian', function() {
+        var containerIn = {
+            rangeselector: {
+                buttons: [{
+                    step: 'year',
+                    count: 1,
+                    stepmode: 'todate'
+                }, {
+                    step: 'month',
+                    count: 6,
+                    stepmode: 'todate'
+                }, {
+                    step: 'day',
+                    count: 1,
+                    stepmode: 'todate'
+                }, {
+                    step: 'hour',
+                    count: 1,
+                    stepmode: 'todate'
+                }]
+            }
+        };
+        var containerOut;
+        function getStepmode(button) { return button.stepmode; }
+
+        containerOut = {};
+        supply(containerIn, containerOut);
+
+        expect(containerOut.rangeselector.buttons.map(getStepmode)).toEqual([
+            'todate', 'todate', 'todate', 'todate'
+        ]);
+
+        containerOut = {};
+        supply(containerIn, containerOut, 'gregorian');
+
+        expect(containerOut.rangeselector.buttons.map(getStepmode)).toEqual([
+            'todate', 'todate', 'todate', 'todate'
+        ]);
+
+        containerOut = {};
+        supply(containerIn, containerOut, 'chinese');
+
+        expect(containerOut.rangeselector.buttons.map(getStepmode)).toEqual([
+            'backward', 'backward', 'todate', 'todate'
+        ]);
+    });
 });
 
 describe('range selector getUpdateObject:', function() {
     'use strict';
 
-    var axisLayout = {
-        _name: 'xaxis',
-        range: [
-            (new Date(1948, 0, 1)).getTime(),
-            (new Date(2015, 10, 30)).getTime()
-        ]
-    };
-
     function assertRanges(update, range0, range1) {
-        expect(update['xaxis.range[0]']).toEqual(range0.getTime());
-        expect(update['xaxis.range[1]']).toEqual(range1.getTime());
+        expect(update['xaxis.range[0]']).toEqual(range0);
+        expect(update['xaxis.range[1]']).toEqual(range1);
+    }
+
+    function setupAxis(opts) {
+        var axisOut = Lib.extendFlat({type: 'date'}, opts);
+        setConvert(axisOut);
+        return axisOut;
+    }
+
+    // buttonLayout: {step, stepmode, count}
+    // range0out: expected resulting range[0] (input is always '1948-01-01')
+    // range1: input range[1], expected to also be the output
+    function assertUpdateCase(buttonLayout, range0out, range1) {
+        var axisLayout = setupAxis({
+            _name: 'xaxis',
+            range: ['1948-01-01', range1]
+        });
+
+        var update = getUpdateObject(axisLayout, buttonLayout);
+
+        assertRanges(update, range0out, range1);
     }
 
     it('should return update object (1 month backward case)', function() {
@@ -200,9 +260,8 @@ describe('range selector getUpdateObject:', function() {
             count: 1
         };
 
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2015, 9, 30), new Date(2015, 10, 30));
+        assertUpdateCase(buttonLayout, '2015-10-30', '2015-11-30');
+        assertUpdateCase(buttonLayout, '2015-10-30 12:34:56', '2015-11-30 12:34:56');
     });
 
     it('should return update object (3 months backward case)', function() {
@@ -212,9 +271,8 @@ describe('range selector getUpdateObject:', function() {
             count: 3
         };
 
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2015, 7, 30), new Date(2015, 10, 30));
+        assertUpdateCase(buttonLayout, '2015-08-30', '2015-11-30');
+        assertUpdateCase(buttonLayout, '2015-08-30 12:34:56', '2015-11-30 12:34:56');
     });
 
     it('should return update object (6 months backward case)', function() {
@@ -224,9 +282,8 @@ describe('range selector getUpdateObject:', function() {
             count: 6
         };
 
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2015, 4, 30), new Date(2015, 10, 30));
+        assertUpdateCase(buttonLayout, '2015-05-30', '2015-11-30');
+        assertUpdateCase(buttonLayout, '2015-05-30 12:34:56', '2015-11-30 12:34:56');
     });
 
     it('should return update object (5 months to-date case)', function() {
@@ -236,9 +293,9 @@ describe('range selector getUpdateObject:', function() {
             count: 5
         };
 
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2015, 6, 1), new Date(2015, 10, 30));
+        assertUpdateCase(buttonLayout, '2015-07-01', '2015-11-30');
+        assertUpdateCase(buttonLayout, '2015-07-01', '2015-12-01');
+        assertUpdateCase(buttonLayout, '2015-08-01', '2015-12-01 00:00:01');
     });
 
     it('should return update object (1 year to-date case)', function() {
@@ -248,9 +305,9 @@ describe('range selector getUpdateObject:', function() {
             count: 1
         };
 
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2015, 0, 1), new Date(2015, 10, 30));
+        assertUpdateCase(buttonLayout, '2015-01-01', '2015-11-30');
+        assertUpdateCase(buttonLayout, '2015-01-01', '2016-01-01');
+        assertUpdateCase(buttonLayout, '2016-01-01', '2016-01-01 00:00:01');
     });
 
     it('should return update object (10 year to-date case)', function() {
@@ -260,9 +317,9 @@ describe('range selector getUpdateObject:', function() {
             count: 10
         };
 
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2006, 0, 1), new Date(2015, 10, 30));
+        assertUpdateCase(buttonLayout, '2006-01-01', '2015-11-30');
+        assertUpdateCase(buttonLayout, '2006-01-01', '2016-01-01');
+        assertUpdateCase(buttonLayout, '2007-01-01', '2016-01-01 00:00:01');
     });
 
     it('should return update object (1 year backward case)', function() {
@@ -272,19 +329,23 @@ describe('range selector getUpdateObject:', function() {
             count: 1
         };
 
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2014, 10, 30), new Date(2015, 10, 30));
+        assertUpdateCase(buttonLayout, '2014-11-30', '2015-11-30');
+        assertUpdateCase(buttonLayout, '2014-11-30 12:34:56', '2015-11-30 12:34:56');
     });
 
     it('should return update object (reset case)', function() {
+        var axisLayout = setupAxis({
+            _name: 'xaxis',
+            range: ['1948-01-01', '2015-11-30']
+        });
+
         var buttonLayout = {
             step: 'all'
         };
 
         var update = getUpdateObject(axisLayout, buttonLayout);
 
-        expect(update).toEqual({ 'xaxis.autorange': true });
+        expect(update).toEqual({'xaxis.autorange': true});
     });
 
     it('should return update object (10 day backward case)', function() {
@@ -294,9 +355,8 @@ describe('range selector getUpdateObject:', function() {
             count: 10
         };
 
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2015, 10, 20), new Date(2015, 10, 30));
+        assertUpdateCase(buttonLayout, '2015-11-20', '2015-11-30');
+        assertUpdateCase(buttonLayout, '2015-11-20 12:34:56', '2015-11-30 12:34:56');
     });
 
     it('should return update object (5 hour backward case)', function() {
@@ -306,9 +366,8 @@ describe('range selector getUpdateObject:', function() {
             count: 5
         };
 
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2015, 10, 29, 19), new Date(2015, 10, 30));
+        assertUpdateCase(buttonLayout, '2015-11-29 19:00', '2015-11-30');
+        assertUpdateCase(buttonLayout, '2015-11-30 07:34:56', '2015-11-30 12:34:56');
     });
 
     it('should return update object (15 minute backward case)', function() {
@@ -318,9 +377,8 @@ describe('range selector getUpdateObject:', function() {
             count: 15
         };
 
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2015, 10, 29, 23, 45), new Date(2015, 10, 30));
+        assertUpdateCase(buttonLayout, '2015-11-29 23:45', '2015-11-30');
+        assertUpdateCase(buttonLayout, '2015-11-30 12:19:56', '2015-11-30 12:34:56');
     });
 
     it('should return update object (10 second backward case)', function() {
@@ -330,9 +388,8 @@ describe('range selector getUpdateObject:', function() {
             count: 10
         };
 
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2015, 10, 29, 23, 59, 50), new Date(2015, 10, 30));
+        assertUpdateCase(buttonLayout, '2015-11-29 23:59:50', '2015-11-30');
+        assertUpdateCase(buttonLayout, '2015-11-30 12:34:46', '2015-11-30 12:34:56');
     });
 
     it('should return update object (12 hour to-date case)', function() {
@@ -342,25 +399,21 @@ describe('range selector getUpdateObject:', function() {
             count: 12
         };
 
-        axisLayout.range[1] = new Date(2015, 10, 30, 12).getTime();
-
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2015, 10, 30, 1), new Date(2015, 10, 30, 12));
+        assertUpdateCase(buttonLayout, '2015-11-30', '2015-11-30 12');
+        assertUpdateCase(buttonLayout, '2015-11-30 01:00', '2015-11-30 12:00:01');
+        assertUpdateCase(buttonLayout, '2015-11-30 01:00', '2015-11-30 13');
     });
 
-    it('should return update object (15 minute backward case)', function() {
+    it('should return update object (20 minute to-date case)', function() {
         var buttonLayout = {
             step: 'minute',
             stepmode: 'todate',
             count: 20
         };
 
-        axisLayout.range[1] = new Date(2015, 10, 30, 12, 20).getTime();
-
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2015, 10, 30, 12, 1), new Date(2015, 10, 30, 12, 20));
+        assertUpdateCase(buttonLayout, '2015-11-30 12:00', '2015-11-30 12:20');
+        assertUpdateCase(buttonLayout, '2015-11-30 12:01', '2015-11-30 12:20:01');
+        assertUpdateCase(buttonLayout, '2015-11-30 12:01', '2015-11-30 12:21');
     });
 
     it('should return update object (2 second to-date case)', function() {
@@ -370,21 +423,16 @@ describe('range selector getUpdateObject:', function() {
             count: 2
         };
 
-        axisLayout.range[1] = new Date(2015, 10, 30, 12, 20, 2).getTime();
-
-        var update = getUpdateObject(axisLayout, buttonLayout);
-
-        assertRanges(update, new Date(2015, 10, 30, 12, 20, 1), new Date(2015, 10, 30, 12, 20, 2));
+        assertUpdateCase(buttonLayout, '2015-11-30 12:20', '2015-11-30 12:20:02');
+        assertUpdateCase(buttonLayout, '2015-11-30 12:20:01', '2015-11-30 12:20:02.001');
+        assertUpdateCase(buttonLayout, '2015-11-30 12:20:01', '2015-11-30 12:20:03');
     });
 
     it('should return update object with correct axis names', function() {
-        var axisLayout = {
+        var axisLayout = setupAxis({
             _name: 'xaxis5',
-            range: [
-                (new Date(1948, 0, 1)).getTime(),
-                (new Date(2015, 10, 30)).getTime()
-            ]
-        };
+            range: ['1948-01-01', '2015-11-30']
+        });
 
         var buttonLayout = {
             step: 'month',
@@ -395,8 +443,8 @@ describe('range selector getUpdateObject:', function() {
         var update = getUpdateObject(axisLayout, buttonLayout);
 
         expect(update).toEqual({
-            'xaxis5.range[0]': new Date(2015, 9, 30).getTime(),
-            'xaxis5.range[1]': new Date(2015, 10, 30).getTime()
+            'xaxis5.range[0]': '2015-10-30',
+            'xaxis5.range[1]': '2015-11-30'
         });
 
     });
@@ -422,9 +470,9 @@ describe('range selector interactions:', function() {
         expect(d3.selectAll(query).size()).toEqual(cnt);
     }
 
-    function checkActiveButton(activeIndex) {
+    function checkActiveButton(activeIndex, msg) {
         d3.selectAll('.button').each(function(d, i) {
-            expect(d.isActive).toBe(activeIndex === i);
+            expect(d.isActive).toBe(activeIndex === i, msg + ': button #' + i);
         });
     }
 
@@ -524,23 +572,23 @@ describe('range selector interactions:', function() {
         var buttons = d3.selectAll('.button').select('rect');
 
         // 'all' should be active at first
-        checkActiveButton(buttons.size() - 1);
+        checkActiveButton(buttons.size() - 1, 'initial');
 
         var update = {
-            'xaxis.range[0]': (new Date(2015, 9, 30)).getTime(),
-            'xaxis.range[1]': (new Date(2015, 10, 30)).getTime()
+            'xaxis.range[0]': '2015-10-30',
+            'xaxis.range[1]': '2015-11-30'
         };
 
         Plotly.relayout(gd, update).then(function() {
 
             // '1m' should be active after the relayout
-            checkActiveButton(0);
+            checkActiveButton(0, '1m');
 
             return Plotly.relayout(gd, 'xaxis.autorange', true);
         }).then(function() {
 
             // 'all' should be after an autoscale
-            checkActiveButton(buttons.size() - 1);
+            checkActiveButton(buttons.size() - 1, 'back to all');
 
             done();
         });

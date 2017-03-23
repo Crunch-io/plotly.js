@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -113,22 +113,35 @@ module.exports = function clonePlot(graphObj, options) {
             };
         }
         for(i = 0; i < sceneIds.length; i++) {
-            var sceneId = sceneIds[i];
+            var scene = newLayout[sceneIds[i]];
 
-            extendFlat(newLayout[sceneId].xaxis, axesImageOverride);
-            extendFlat(newLayout[sceneId].yaxis, axesImageOverride);
-            extendFlat(newLayout[sceneId].zaxis, axesImageOverride);
+            if(!scene.xaxis) {
+                scene.xaxis = {};
+            }
+
+            if(!scene.yaxis) {
+                scene.yaxis = {};
+            }
+
+            if(!scene.zaxis) {
+                scene.zaxis = {};
+            }
+
+            extendFlat(scene.xaxis, axesImageOverride);
+            extendFlat(scene.yaxis, axesImageOverride);
+            extendFlat(scene.zaxis, axesImageOverride);
 
             // TODO what does this do?
-            newLayout[sceneId]._scene = null;
+            scene._scene = null;
         }
     }
 
-    var td = document.createElement('div');
-    if(options.tileClass) td.className = options.tileClass;
+    var gd = document.createElement('div');
+    if(options.tileClass) gd.className = options.tileClass;
 
     var plotTile = {
-        td: td,
+        gd: gd,
+        td: gd, // for external (image server) compatibility
         layout: newLayout,
         data: newData,
         config: {
@@ -148,8 +161,8 @@ module.exports = function clonePlot(graphObj, options) {
         plotTile.config.setBackground = options.setBackground || 'opaque';
     }
 
-    // attaching the default Layout the td, so you can grab it later
-    plotTile.td.defaultLayout = cloneLayoutOverride(options.tileClass);
+    // attaching the default Layout the gd, so you can grab it later
+    plotTile.gd.defaultLayout = cloneLayoutOverride(options.tileClass);
 
     return plotTile;
 };

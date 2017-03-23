@@ -7,10 +7,12 @@ var Bar = require('@src/traces/bar');
 var Legend = require('@src/components/legend');
 var pkg = require('../../../package.json');
 var subroutines = require('@src/plot_api/subroutines');
+var helpers = require('@src/plot_api/helpers');
 
 var d3 = require('d3');
 var createGraphDiv = require('../assets/create_graph_div');
 var destroyGraphDiv = require('../assets/destroy_graph_div');
+var fail = require('../assets/fail_test');
 
 
 describe('Test plot api', function() {
@@ -19,6 +21,84 @@ describe('Test plot api', function() {
     describe('Plotly.version', function() {
         it('should be the same as in the package.json', function() {
             expect(Plotly.version).toEqual(pkg.version);
+        });
+    });
+
+    describe('Plotly.plot', function() {
+        var gd;
+
+        beforeEach(function() {
+            gd = createGraphDiv();
+        });
+
+        afterEach(destroyGraphDiv);
+
+        it('accepts gd, data, layout, and config as args', function(done) {
+            Plotly.plot(gd,
+                [{x: [1, 2, 3], y: [1, 2, 3]}],
+                {width: 500, height: 500},
+                {editable: true}
+            ).then(function() {
+                expect(gd.layout.width).toEqual(500);
+                expect(gd.layout.height).toEqual(500);
+                expect(gd.data.length).toEqual(1);
+                expect(gd._context.editable).toBe(true);
+            }).catch(fail).then(done);
+        });
+
+        it('accepts gd and an object as args', function(done) {
+            Plotly.plot(gd, {
+                data: [{x: [1, 2, 3], y: [1, 2, 3]}],
+                layout: {width: 500, height: 500},
+                config: {editable: true},
+                frames: [{y: [2, 1, 0], name: 'frame1'}]
+            }).then(function() {
+                expect(gd.layout.width).toEqual(500);
+                expect(gd.layout.height).toEqual(500);
+                expect(gd.data.length).toEqual(1);
+                expect(gd._transitionData._frames.length).toEqual(1);
+                expect(gd._context.editable).toBe(true);
+            }).catch(fail).then(done);
+        });
+
+        it('allows adding more frames to the initial set', function(done) {
+            Plotly.plot(gd, {
+                data: [{x: [1, 2, 3], y: [1, 2, 3]}],
+                layout: {width: 500, height: 500},
+                config: {editable: true},
+                frames: [{y: [7, 7, 7], name: 'frame1'}]
+            }).then(function() {
+                expect(gd.layout.width).toEqual(500);
+                expect(gd.layout.height).toEqual(500);
+                expect(gd.data.length).toEqual(1);
+                expect(gd._transitionData._frames.length).toEqual(1);
+                expect(gd._context.editable).toBe(true);
+
+                return Plotly.addFrames(gd, [
+                    {y: [8, 8, 8], name: 'frame2'},
+                    {y: [9, 9, 9], name: 'frame3'}
+                ]);
+            }).then(function() {
+                expect(gd._transitionData._frames.length).toEqual(3);
+                expect(gd._transitionData._frames[0].name).toEqual('frame1');
+                expect(gd._transitionData._frames[1].name).toEqual('frame2');
+                expect(gd._transitionData._frames[2].name).toEqual('frame3');
+            }).catch(fail).then(done);
+        });
+
+        it('should emit afterplot event after plotting is done', function(done) {
+            var afterPlot = false;
+
+            var promise = Plotly.plot(gd, [{ y: [2, 1, 2]}]);
+
+            gd.on('plotly_afterplot', function() {
+                afterPlot = true;
+            });
+
+            promise.then(function() {
+                expect(afterPlot).toBe(true);
+            })
+            .then(done);
         });
     });
 
@@ -84,6 +164,94 @@ describe('Test plot api', function() {
                 })
                 .then(done);
         });
+
+        it('can set items in array objects', function(done) {
+            Plotly.plot(gd, [{ x: [1, 2, 3], y: [1, 2, 3] }])
+                .then(function() {
+                    return Plotly.relayout(gd, {rando: [1, 2, 3]});
+                })
+                .then(function() {
+                    expect(gd.layout.rando).toEqual([1, 2, 3]);
+                    return Plotly.relayout(gd, {'rando[1]': 45});
+                })
+                .then(function() {
+                    expect(gd.layout.rando).toEqual([1, 45, 3]);
+                })
+                .then(done);
+        });
+
+        it('errors if child and parent are edited together', function(done) {
+            var edit1 = {rando: [{a: 1}, {b: 2}]};
+            var edit2 = {'rando[1]': {c: 3}};
+            var edit3 = {'rando[1].d': 4};
+
+            Plotly.plot(gd, [{ x: [1, 2, 3], y: [1, 2, 3] }])
+                .then(function() {
+                    return Plotly.relayout(gd, edit1);
+                })
+                .then(function() {
+                    expect(gd.layout.rando).toEqual([{a: 1}, {b: 2}]);
+                    return Plotly.relayout(gd, edit2);
+                })
+                .then(function() {
+                    expect(gd.layout.rando).toEqual([{a: 1}, {c: 3}]);
+                    return Plotly.relayout(gd, edit3);
+                })
+                .then(function() {
+                    expect(gd.layout.rando).toEqual([{a: 1}, {c: 3, d: 4}]);
+
+                    // OK, setup is done - test the failing combinations
+                    [[edit1, edit2], [edit1, edit3], [edit2, edit3]].forEach(function(v) {
+                        // combine properties in both orders - which results in the same object
+                        // but the properties are iterated in opposite orders
+                        expect(function() {
+                            return Plotly.relayout(gd, Lib.extendFlat({}, v[0], v[1]));
+                        }).toThrow();
+                        expect(function() {
+                            return Plotly.relayout(gd, Lib.extendFlat({}, v[1], v[0]));
+                        }).toThrow();
+                    });
+                })
+                .catch(fail)
+                .then(done);
+        });
+
+        it('can set empty text nodes', function(done) {
+            var data = [{
+                x: [1, 2, 3],
+                y: [0, 0, 0],
+                text: ['', 'Text', ''],
+                mode: 'lines+text'
+            }];
+            var scatter = null;
+            var oldHeight = 0;
+            Plotly.plot(gd, data)
+                .then(function() {
+                    scatter = document.getElementsByClassName('scatter')[0];
+                    oldHeight = scatter.getBoundingClientRect().height;
+                    return Plotly.relayout(gd, 'yaxis.range', [0.5, 0.5, 0.5]);
+                })
+                .then(function() {
+                    var newHeight = scatter.getBoundingClientRect().height;
+                    expect(newHeight).toEqual(oldHeight);
+                })
+                .then(done);
+        });
+
+        it('should skip empty axis objects', function(done) {
+            Plotly.plot(gd, [{
+                x: [1, 2, 3],
+                y: [1, 2, 1]
+            }], {
+                xaxis: { title: 'x title' },
+                yaxis: { title: 'y title' }
+            })
+            .then(function() {
+                return Plotly.relayout(gd, { zaxis: {} });
+            })
+            .catch(fail)
+            .then(done);
+        });
     });
 
     describe('Plotly.restyle', function() {
@@ -130,6 +298,36 @@ describe('Test plot api', function() {
             expect(Plots.style).toHaveBeenCalled();
             expect(PlotlyInternal.plot).not.toHaveBeenCalled();
             expect(gd.calcdata).toBeDefined();
+        });
+
+        it('should do full replot when arrayOk attributes are updated', function() {
+            var gd = {
+                data: [{x: [1, 2, 3], y: [1, 2, 3]}],
+                layout: {}
+            };
+
+            mockDefaultsAndCalc(gd);
+            Plotly.restyle(gd, 'marker.color', [['red', 'green', 'blue']]);
+            expect(gd.calcdata).toBeUndefined();
+            expect(PlotlyInternal.plot).toHaveBeenCalled();
+
+            mockDefaultsAndCalc(gd);
+            PlotlyInternal.plot.calls.reset();
+            Plotly.restyle(gd, 'marker.color', 'yellow');
+            expect(gd.calcdata).toBeUndefined();
+            expect(PlotlyInternal.plot).toHaveBeenCalled();
+
+            mockDefaultsAndCalc(gd);
+            PlotlyInternal.plot.calls.reset();
+            Plotly.restyle(gd, 'marker.color', 'blue');
+            expect(gd.calcdata).toBeDefined();
+            expect(PlotlyInternal.plot).not.toHaveBeenCalled();
+
+            mockDefaultsAndCalc(gd);
+            PlotlyInternal.plot.calls.reset();
+            Plotly.restyle(gd, 'marker.color', [['red', 'blue', 'green']]);
+            expect(gd.calcdata).toBeUndefined();
+            expect(PlotlyInternal.plot).toHaveBeenCalled();
         });
 
         it('calls plot on xgap and ygap styling', function() {
@@ -203,7 +401,74 @@ describe('Test plot api', function() {
             expect(gd._fullData[0].marker.color).toBe(colorDflt[0]);
             expect(gd._fullData[1].marker.color).toBe(colorDflt[1]);
         });
+    });
 
+    describe('Plotly.restyle unmocked', function() {
+        var gd;
+
+        beforeEach(function() {
+            gd = createGraphDiv();
+        });
+
+        afterEach(function() {
+            destroyGraphDiv();
+        });
+
+        it('should redo auto z/contour when editing z array', function(done) {
+            Plotly.plot(gd, [{type: 'contour', z: [[1, 2], [3, 4]]}]).then(function() {
+                expect(gd.data[0].zauto).toBe(true, gd.data[0]);
+                expect(gd.data[0].zmin).toBe(1);
+                expect(gd.data[0].zmax).toBe(4);
+
+                expect(gd.data[0].autocontour).toBe(true);
+                expect(gd.data[0].contours).toEqual({start: 1.5, end: 3.5, size: 0.5});
+
+                return Plotly.restyle(gd, {'z[0][0]': 10});
+            }).then(function() {
+                expect(gd.data[0].zmin).toBe(2);
+                expect(gd.data[0].zmax).toBe(10);
+
+                expect(gd.data[0].contours).toEqual({start: 3, end: 9, size: 1});
+            })
+            .catch(fail)
+            .then(done);
+        });
+
+        it('errors if child and parent are edited together', function(done) {
+            var edit1 = {rando: [[{a: 1}, {b: 2}]]};
+            var edit2 = {'rando[1]': {c: 3}};
+            var edit3 = {'rando[1].d': 4};
+
+            Plotly.plot(gd, [{x: [1, 2, 3], y: [1, 2, 3], type: 'scatter'}])
+                .then(function() {
+                    return Plotly.restyle(gd, edit1);
+                })
+                .then(function() {
+                    expect(gd.data[0].rando).toEqual([{a: 1}, {b: 2}]);
+                    return Plotly.restyle(gd, edit2);
+                })
+                .then(function() {
+                    expect(gd.data[0].rando).toEqual([{a: 1}, {c: 3}]);
+                    return Plotly.restyle(gd, edit3);
+                })
+                .then(function() {
+                    expect(gd.data[0].rando).toEqual([{a: 1}, {c: 3, d: 4}]);
+
+                    // OK, setup is done - test the failing combinations
+                    [[edit1, edit2], [edit1, edit3], [edit2, edit3]].forEach(function(v) {
+                        // combine properties in both orders - which results in the same object
+                        // but the properties are iterated in opposite orders
+                        expect(function() {
+                            return Plotly.restyle(gd, Lib.extendFlat({}, v[0], v[1]));
+                        }).toThrow();
+                        expect(function() {
+                            return Plotly.restyle(gd, Lib.extendFlat({}, v[1], v[0]));
+                        }).toThrow();
+                    });
+                })
+                .catch(fail)
+                .then(done);
+        });
     });
 
     describe('Plotly.deleteTraces', function() {
@@ -335,7 +600,6 @@ describe('Test plot api', function() {
 
             // make sure we didn't muck with gd.data if things failed!
             expect(gd).toEqual(expected);
-
         });
 
         it('should throw an error when traces and newIndices arrays are unequal', function() {
@@ -375,7 +639,6 @@ describe('Test plot api', function() {
             expect(gd.data[3].uid).toBeDefined();
             expect(PlotlyInternal.redraw).not.toHaveBeenCalled();
             expect(PlotlyInternal.moveTraces).toHaveBeenCalledWith(gd, [-2, -1], [1, 3]);
-
         });
 
         it('should work when newIndices has negative indices', function() {
@@ -386,7 +649,6 @@ describe('Test plot api', function() {
             expect(gd.data[3].uid).toBeDefined();
             expect(PlotlyInternal.redraw).not.toHaveBeenCalled();
             expect(PlotlyInternal.moveTraces).toHaveBeenCalledWith(gd, [-2, -1], [-3, -1]);
-
         });
 
         it('should work when newIndices is an integer', function() {
@@ -395,7 +657,21 @@ describe('Test plot api', function() {
             expect(gd.data[2].uid).toBeDefined();
             expect(PlotlyInternal.redraw).not.toHaveBeenCalled();
             expect(PlotlyInternal.moveTraces).toHaveBeenCalledWith(gd, [-1], [0]);
+        });
 
+        it('should work when adding an existing trace', function() {
+            Plotly.addTraces(gd, gd.data[0]);
+
+            expect(gd.data.length).toEqual(3);
+            expect(gd.data[0]).not.toBe(gd.data[2]);
+        });
+
+        it('should work when duplicating the existing data', function() {
+            Plotly.addTraces(gd, gd.data);
+
+            expect(gd.data.length).toEqual(4);
+            expect(gd.data[0]).not.toBe(gd.data[2]);
+            expect(gd.data[1]).not.toBe(gd.data[3]);
         });
     });
 
@@ -817,7 +1093,7 @@ describe('Test plot api', function() {
         });
     });
 
-    describe('cleanData', function() {
+    describe('cleanData & cleanLayout', function() {
         var gd;
 
         beforeEach(function() {
@@ -931,6 +1207,126 @@ describe('Test plot api', function() {
 
             expect(gd.data[1].contours).toBeUndefined();
         });
+
+        it('should rename *filtersrc* to *target* in filter transforms', function() {
+            var data = [{
+                transforms: [{
+                    type: 'filter',
+                    filtersrc: 'y'
+                }, {
+                    type: 'filter',
+                    operation: '<'
+                }]
+            }, {
+                transforms: [{
+                    type: 'filter',
+                    target: 'y'
+                }]
+            }];
+
+            Plotly.plot(gd, data);
+
+            var trace0 = gd.data[0],
+                trace1 = gd.data[1];
+
+            expect(trace0.transforms.length).toEqual(2);
+            expect(trace0.transforms[0].filtersrc).toBeUndefined();
+            expect(trace0.transforms[0].target).toEqual('y');
+
+            expect(trace1.transforms.length).toEqual(1);
+            expect(trace1.transforms[0].target).toEqual('y');
+        });
+
+        it('should rename *calendar* to *valuecalendar* in filter transforms', function() {
+            var data = [{
+                transforms: [{
+                    type: 'filter',
+                    target: 'y',
+                    calendar: 'hebrew'
+                }, {
+                    type: 'filter',
+                    operation: '<'
+                }]
+            }, {
+                transforms: [{
+                    type: 'filter',
+                    valuecalendar: 'jalali'
+                }]
+            }];
+
+            Plotly.plot(gd, data);
+
+            var trace0 = gd.data[0],
+                trace1 = gd.data[1];
+
+            expect(trace0.transforms.length).toEqual(2);
+            expect(trace0.transforms[0].calendar).toBeUndefined();
+            expect(trace0.transforms[0].valuecalendar).toEqual('hebrew');
+
+            expect(trace1.transforms.length).toEqual(1);
+            expect(trace1.transforms[0].valuecalendar).toEqual('jalali');
+        });
+
+        it('should cleanup annotations / shapes refs', function() {
+            var data = [{}];
+
+            var layout = {
+                annotations: [
+                    { ref: 'paper' },
+                    null,
+                    { xref: 'x02', yref: 'y1' }
+                ],
+                shapes: [
+                    { xref: 'y', yref: 'x' },
+                    null,
+                    { xref: 'x03', yref: 'y1' }
+                ]
+            };
+
+            Plotly.plot(gd, data, layout);
+
+            expect(gd.layout.annotations[0]).toEqual({ xref: 'paper', yref: 'paper' });
+            expect(gd.layout.annotations[1]).toEqual(null);
+            expect(gd.layout.annotations[2]).toEqual({ xref: 'x2', yref: 'y' });
+
+            expect(gd.layout.shapes[0].xref).toBeUndefined();
+            expect(gd.layout.shapes[0].yref).toBeUndefined();
+            expect(gd.layout.shapes[1]).toEqual(null);
+            expect(gd.layout.shapes[2].xref).toEqual('x3');
+            expect(gd.layout.shapes[2].yref).toEqual('y');
+
+        });
+    });
+
+    describe('Plotly.newPlot', function() {
+        var gd;
+
+        beforeEach(function() {
+            gd = createGraphDiv();
+        });
+
+        afterEach(destroyGraphDiv);
+
+        it('should respect layout.width and layout.height', function(done) {
+
+            // See issue https://github.com/plotly/plotly.js/issues/537
+            var data = [{
+                x: [1, 2],
+                y: [1, 2]
+            }];
+
+            Plotly.plot(gd, data).then(function() {
+                var height = 50;
+
+                Plotly.newPlot(gd, data, { height: height }).then(function() {
+                    var fullLayout = gd._fullLayout,
+                        svg = document.getElementsByClassName('main-svg')[0];
+
+                    expect(fullLayout.height).toBe(height);
+                    expect(+svg.getAttribute('height')).toBe(height);
+                }).then(done);
+            });
+        });
     });
 
     describe('Plotly.update should', function() {
@@ -1030,6 +1426,55 @@ describe('Test plot api', function() {
                 expect(calcdata).toBe(gd.calcdata);
                 done();
             });
+        });
+    });
+});
+
+describe('plot_api helpers', function() {
+    describe('hasParent', function() {
+        var attr = 'annotations[2].xref';
+        var attr2 = 'marker.line.width';
+
+        it('does not match the attribute itself or other related non-parent attributes', function() {
+            var aobj = {
+                // '' wouldn't be valid as an attribute in our framework, but tested
+                // just in case this would count as a parent.
+                '': true,
+                'annotations[1]': {}, // parent structure, just a different array element
+                'xref': 1, // another substring
+                'annotations[2].x': 0.5, // substring of the attribute, but not a parent
+                'annotations[2].xref': 'x2' // the attribute we're testing - not its own parent
+            };
+
+            expect(helpers.hasParent(aobj, attr)).toBe(false);
+
+            var aobj2 = {
+                'marker.line.color': 'red',
+                'marker.line.width': 2,
+                'marker.color': 'blue',
+                'line': {}
+            };
+
+            expect(helpers.hasParent(aobj2, attr2)).toBe(false);
+        });
+
+        it('is false when called on a top-level attribute', function() {
+            var aobj = {
+                '': true,
+                'width': 100
+            };
+
+            expect(helpers.hasParent(aobj, 'width')).toBe(false);
+        });
+
+        it('matches any kind of parent', function() {
+            expect(helpers.hasParent({'annotations': []}, attr)).toBe(true);
+            expect(helpers.hasParent({'annotations[2]': {}}, attr)).toBe(true);
+
+            expect(helpers.hasParent({'marker': {}}, attr2)).toBe(true);
+            // this one wouldn't actually make sense: marker.line needs to be an object...
+            // but hasParent doesn't look at the values in aobj, just its keys.
+            expect(helpers.hasParent({'marker.line': 1}, attr2)).toBe(true);
         });
     });
 });

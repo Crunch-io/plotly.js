@@ -1,5 +1,6 @@
 var path = require('path');
 var fs = require('fs');
+var spawn = require('child_process').spawn;
 
 var falafel = require('falafel');
 var gzipSize = require('gzip-size');
@@ -10,6 +11,7 @@ var constants = require('./util/constants');
 var pkg = require('../package.json');
 
 var pathDistREADME = path.join(constants.pathToDist, 'README.md');
+var pathDistNpmLs = path.join(constants.pathToDist, 'npm-ls.json');
 var cdnRoot = 'https://cdn.plot.ly/plotly-';
 var coreModules = ['scatter'];
 
@@ -18,15 +20,25 @@ var JS = '.js';
 var MINJS = '.min.js';
 
 // main
-var content = getContent();
-common.writeFile(pathDistREADME, content.join('\n'));
+writeNpmLs();
+common.writeFile(pathDistREADME, getReadMeContent());
 
-function getContent() {
+function writeNpmLs() {
+    if(common.doesFileExist(pathDistNpmLs)) fs.unlinkSync(pathDistNpmLs);
+
+    var ws = fs.createWriteStream(pathDistNpmLs, { flags: 'a' });
+    var proc = spawn('npm', ['ls', '--json', '--only', 'prod']);
+
+    proc.stdout.pipe(ws);
+}
+
+function getReadMeContent() {
     return []
         .concat(getInfoContent())
         .concat(getMainBundleInfo())
         .concat(getPartialBundleInfo())
-        .concat(getFooter());
+        .concat(getFooter())
+        .join('\n');
 }
 
 // general info about distributed files
@@ -83,11 +95,11 @@ function getMainBundleInfo() {
         '',
         'It be can imported as minified javascript',
         '- using dist file `dist/plotly.min.js`',
-        '- using CDN URL ' + cdnRoot + 'plotly-latest.min.js OR ' + cdnRoot + 'plotly-' + pkg.version + MINJS,
+        '- using CDN URL ' + cdnRoot + 'latest' + MINJS + ' OR ' + cdnRoot + pkg.version + MINJS,
         '',
         'or as raw javascript:',
         '- using dist file `dist/plotly.js`',
-        '- using CDN URL ' + cdnRoot + 'plotly-latest.js OR ' + cdnRoot + 'plotly-' + pkg.version + JS,
+        '- using CDN URL ' + cdnRoot + 'latest' + JS + ' OR ' + cdnRoot + pkg.version + JS,
         '- using CommonJS with `require(\'plotly.js\')`',
         '',
         'If you would like to have access to the attribute meta information ' +

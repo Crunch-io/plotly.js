@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -10,17 +10,13 @@
 'use strict';
 
 
-var legend = module.exports = {};
+module.exports = {
+    moduleType: 'component',
+    name: 'legend',
 
+    layoutAttributes: require('./attributes'),
+    supplyLayoutDefaults: require('./defaults'),
 
-legend.moduleType = 'component';
-
-legend.name = 'legend';
-
-legend.layoutAttributes = require('./attributes');
-
-legend.supplyLayoutDefaults = require('./defaults');
-
-legend.draw = require('./draw');
-
-legend.style = require('./style');
+    draw: require('./draw'),
+    style: require('./style')
+};

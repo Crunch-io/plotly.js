@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -21,7 +21,8 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
         xa = pointData.xa,
         ya = pointData.ya,
         barDelta = (hovermode === 'closest') ?
-            t.barwidth / 2 : t.dbar * (1 - xa._gd._fullLayout.bargap) / 2,
+            t.barwidth / 2 :
+            t.bargroupwidth / 2,
         barPos;
 
     if(hovermode !== 'closest') barPos = function(di) { return di.p; };
@@ -64,9 +65,10 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
     if(Color.opacity(mc)) pointData.color = mc;
     else if(Color.opacity(mlc) && mlw) pointData.color = mlc;
 
+    var size = (trace.base) ? di.b + di.s : di.s;
     if(trace.orientation === 'h') {
         pointData.x0 = pointData.x1 = xa.c2p(di.x, true);
-        pointData.xLabelVal = di.s;
+        pointData.xLabelVal = size;
 
         pointData.y0 = ya.c2p(barPos(di) - barDelta, true);
         pointData.y1 = ya.c2p(barPos(di) + barDelta, true);
@@ -74,7 +76,7 @@ module.exports = function hoverPoints(pointData, xval, yval, hovermode) {
     }
     else {
         pointData.y0 = pointData.y1 = ya.c2p(di.y, true);
-        pointData.yLabelVal = di.s;
+        pointData.yLabelVal = size;
 
         pointData.x0 = xa.c2p(barPos(di) - barDelta, true);
         pointData.x1 = xa.c2p(barPos(di) + barDelta, true);

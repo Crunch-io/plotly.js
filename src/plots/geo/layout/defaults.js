@@ -1,5 +1,5 @@
 /**
-* Copyright 2012-2016, Plotly, Inc.
+* Copyright 2012-2017, Plotly, Inc.
 * All rights reserved.
 *
 * This source code is licensed under the MIT license found in the
@@ -73,7 +73,7 @@ function handleGeoDefaults(geoLayoutIn, geoLayoutOut, coerce) {
         coerce('riverwidth');
     }
 
-    show = coerce('showcountries', isScoped);
+    show = coerce('showcountries', isScoped && scope !== 'usa');
     if(show) {
         coerce('countrycolor');
         coerce('countrywidth');
