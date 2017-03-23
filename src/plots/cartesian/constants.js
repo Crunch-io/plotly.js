@@ -50,8 +50,8 @@ module.exports = {
     // size and display constants for hover text
     HOVERARROWSIZE: 6, // pixel size of hover arrows
     HOVERTEXTPAD: 3, // pixels padding around text
-    HOVERFONTSIZE: 13,
-    HOVERFONT: 'Arial, sans-serif',
+    HOVERFONTSIZE: 11,
+    HOVERFONT: 'AvenirLTStd, Arial, sans-serif',
 
     // minimum time (msec) between hover calls
     HOVERMINTIME: 50,

@@ -996,6 +996,8 @@ BN.prototype._initNumber = function _initNumber(number, base, endian) {
     ];
     this.length = 3;
   }
+  return this.strip();
+};
 
   if (endian !== 'le')
     return;
@@ -1350,6 +1352,8 @@ BN.prototype.toArray = function toArray(endian) {
       res[i] = b;
     }
   }
+  return r;
+};
 
   return res;
 };
@@ -2201,6 +2205,9 @@ BN.prototype._wordDiv = function _wordDiv(num, mode) {
     a.ishln(shift);
     bhi = b.words[b.length - 1];
   }
+  if (q)
+    q.strip();
+  a.strip();
 
   // Initialize quotient
   var m = a.length - b.length;
@@ -2754,6 +2761,7 @@ function MPrime(name, p) {
 
   this.tmp = this._tmp();
 }
+inherits(P224, MPrime);
 
 MPrime.prototype._tmp = function _tmp() {
   var tmp = new BN(null);
@@ -2783,6 +2791,10 @@ MPrime.prototype.ireduce = function ireduce(num) {
   } else {
     r.strip();
   }
+  if (carry !== 0)
+    num.words[num.length++] = carry;
+  return num;
+};
 
   return r;
 };
@@ -3658,6 +3670,8 @@ red_loop:
     }
   }
 }
+},{"./brute":32,"./median":34,"./partition":35,"./sweep":37,"bit-twiddle":29,"typedarray-pool":186}],34:[function(require,module,exports){
+'use strict'
 
 //The main box intersection routine
 function boxIntersectIter(
@@ -4964,6 +4978,15 @@ function assertSize (size) {
     throw new RangeError('"size" argument must not be negative')
   }
 }
+},{"./sort":36,"bit-twiddle":29,"typedarray-pool":186}],38:[function(require,module,exports){
+(function (global){
+/*!
+ * The buffer module from node.js, for the browser.
+ *
+ * @author   Feross Aboukhadijeh <feross@feross.org> <http://feross.org>
+ * @license  MIT
+ */
+/* eslint-disable no-proto */
 
 function alloc (size, fill, encoding) {
   assertSize(size)
@@ -5493,6 +5516,8 @@ function bidirectionalIndexOf (buffer, val, byteOffset, encoding, dir) {
     }
     return arrayIndexOf(buffer, [ val ], byteOffset, encoding, dir)
   }
+  return buffer
+}
 
   throw new TypeError('val must be string, number or Buffer')
 }
@@ -5767,6 +5792,8 @@ function utf8Slice (buf, start, end) {
     res.push(codePoint)
     i += bytesPerSequence
   }
+  return '<Buffer ' + str + '>'
+}
 
   return decodeCodePointsArray(res)
 }
@@ -6152,6 +6179,8 @@ Buffer.prototype.writeIntLE = function writeIntLE (value, offset, byteLength, no
     }
     this[offset + i] = ((value / mul) >> 0) - sub & 0xFF
   }
+  return out
+}
 
   return offset + byteLength
 }
@@ -6294,6 +6323,7 @@ Buffer.prototype.copy = function copy (target, targetStart, start, end) {
   if (target.length - targetStart < end - start) {
     end = target.length - targetStart + start
   }
+  mul *= 0x80
 
   var len = end - start
   var i
@@ -6485,6 +6515,8 @@ function utf8ToBytes (string, units) {
       throw new Error('Invalid code point')
     }
   }
+  return offset + 2
+}
 
   return bytes
 }
@@ -7240,6 +7272,9 @@ function removePair(list, j, k) {
       list.length = n - 2
       return
     }
+    
+  } else {
+    return cells
   }
 }
 
@@ -26338,6 +26373,14 @@ function createGLPlot2D(options) {
 
 },{"./lib/box":88,"./lib/grid":89,"./lib/line":90,"./lib/text":92,"gl-select-static":131}],102:[function(require,module,exports){
 
+  } else if (isObject(list)) {
+    for (i = length; i-- > 0;) {
+      if (list[i] === listener ||
+          (list[i].listener && list[i].listener === listener)) {
+        position = i;
+        break;
+      }
+    }
 
 exports.pointVertex       = "precision mediump float;\n#define GLSLIFY 1\n\nattribute vec2 position;\n\nuniform mat3 matrix;\nuniform float pointSize;\nuniform float pointCloud;\n\nhighp float rand(vec2 co) {\n  highp float a = 12.9898;\n  highp float b = 78.233;\n  highp float c = 43758.5453;\n  highp float d = dot(co.xy, vec2(a, b));\n  highp float e = mod(d, 3.14);\n  return fract(sin(e) * c);\n}\n\nvoid main() {\n  vec3 hgPosition = matrix * vec3(position, 1);\n  gl_Position  = vec4(hgPosition.xy, 0, hgPosition.z);\n    // if we don't jitter the point size a bit, overall point cloud\n    // saturation 'jumps' on zooming, which is disturbing and confusing\n  gl_PointSize = pointSize * ((19.5 + rand(position)) / 20.0);\n  if(pointCloud != 0.0) { // pointCloud is truthy\n    // get the same square surface as circle would be\n    gl_PointSize *= 0.886;\n  }\n}"
 exports.pointFragment     = "precision mediump float;\n#define GLSLIFY 1\n\nuniform vec4 color, borderColor;\nuniform float centerFraction;\nuniform float pointCloud;\n\nvoid main() {\n  float radius;\n  vec4 baseColor;\n  if(pointCloud != 0.0) { // pointCloud is truthy\n    if(centerFraction == 1.0) {\n      gl_FragColor = color;\n    } else {\n      gl_FragColor = mix(borderColor, color, centerFraction);\n    }\n  } else {\n    radius = length(2.0 * gl_PointCoord.xy - 1.0);\n    if(radius > 1.0) {\n      discard;\n    }\n    baseColor = mix(borderColor, color, step(radius, centerFraction));\n    gl_FragColor = vec4(baseColor.rgb * baseColor.a, baseColor.a);\n  }\n}\n"
@@ -27394,6 +27437,8 @@ function quickSort(left, right, data_levels, data_points, data_ids, data_weights
     data_points[2*ptr6+i1] = y
     data_points[2*ptr7+i1] = z
   }
+  return new RedBlackTree(this.tree._compare, cstack[0])
+}
 
   var id_x = data_ids[ptr0]
   var id_y = data_ids[ptr2]
@@ -29623,6 +29668,7 @@ function tokenize(opt) {
     input = input.slice(i)
     return tokens
   }
+})
 
   function end(chunk) {
     if(content.length) {
@@ -29633,6 +29679,10 @@ function tokenize(opt) {
     token('(eof)')
     return tokens
   }
+  var gl = this.gl
+  gl.bindFramebuffer(gl.FRAMEBUFFER, this.handle)
+  gl.viewport(0, 0, this._shape[0], this._shape[1])
+}
 
   function normal() {
     content = content.length ? [] : content
@@ -31227,6 +31277,9 @@ function permBitmask(dimension, mask, order) {
     if(mask & (1<<i)) {
       r |= (1<<order[i])
     }
+
+    gl.depthMask(false)
+    gl.disable(gl.DEPTH_TEST)
   }
   return r
 }
@@ -39559,6 +39612,13 @@ function reglCore (
       scissor_box: parseBox(S_SCISSOR_BOX)
     }
   }
+  if(type === gl.FLOAT && !gl.getExtension('OES_texture_float')) {
+    throw new Error('gl-texture2d: Floating point textures not supported on this platform')
+  }
+  var tex = initTexture(gl)
+  gl.texImage2D(gl.TEXTURE_2D, 0, format, width, height, 0, format, type, null)
+  return new Texture2D(gl, tex, width, height, format, type)
+}
 
   function parseProgram (options) {
     var staticOptions = options.static;
@@ -39864,6 +39924,7 @@ function reglCore (
       offset: OFFSET
     }
   }
+}
 
   function parseGLState (options, env) {
     var staticOptions = options.static;
@@ -44132,6 +44193,8 @@ function UnionFind(count) {
     this.ranks[i] = 0;
   }
 }
+},{"edges-to-adjacency-list":58}],155:[function(require,module,exports){
+'use strict'
 
 UnionFind.prototype.length = function() {
   return this.roots.length;
@@ -44564,6 +44627,9 @@ var proto = SlabDecomposition.prototype
 function compareHorizontal(e, y) {
   return e.y - y
 }
+},{"binary-search-bounds":28,"interval-tree-1d":138,"robust-orientation":164,"slab-decomposition":176}],157:[function(require,module,exports){
+// shim for using process in browser
+var process = module.exports = {};
 
 function searchBucket(root, p) {
   var lastNode = null
@@ -44950,6 +45016,7 @@ function createSlabDecomposition(segments) {
         _argv.splice(0, 0, fmt)
         return sprintf.apply(null, _argv)
     }
+}
 
     /**
      * helpers
@@ -45384,6 +45451,9 @@ TinySDF.prototype.draw = function (char) {
         this.gridOuter[i] = a === 1 ? 0 : a === 0 ? INF : Math.pow(Math.max(0, 0.5 - a), 2);
         this.gridInner[i] = a === 1 ? INF : a === 0 ? 0 : Math.pow(Math.max(0, a - 0.5), 2);
     }
+  }
+  return result
+}
 
     edt(this.gridOuter, this.size, this.size, this.f, this.d, this.v, this.z);
     edt(this.gridInner, this.size, this.size, this.f, this.d, this.v, this.z);
@@ -45732,6 +45802,9 @@ tinycolor.fromRatio = function(color, opts) {
         }
         color = newColor;
     }
+    return orientation4Exact(a,b,c,d)
+  }
+]
 
     return tinycolor(color, opts);
 };
@@ -45887,6 +45960,8 @@ function hslToRgb(h, s, l) {
 
     return { r: r * 255, g: g * 255, b: b * 255 };
 }
+},{}],169:[function(require,module,exports){
+"use strict"
 
 // `rgbToHsv`
 // Converts an RGB color value to HSV
@@ -45917,6 +45992,8 @@ function rgbToHsv(r, g, b) {
     }
     return { h: h, s: s, v: v };
 }
+},{}],170:[function(require,module,exports){
+"use strict"
 
 // `hsvToRgb`
 // Converts an HSV color value to RGB.
@@ -45940,6 +46017,7 @@ function rgbToHsv(r, g, b) {
 
     return { r: r * 255, g: g * 255, b: b * 255 };
 }
+exports.dimension = dimension
 
 // `rgbToHex`
 // Converts an RGB color to hex
@@ -46033,6 +46111,7 @@ function saturate(color, amount) {
     hsl.s = clamp01(hsl.s);
     return tinycolor(hsl);
 }
+exports.boundary = boundary;
 
 function greyscale(color) {
     return tinycolor(color).desaturate(100);
@@ -46431,6 +46510,8 @@ function boundAlpha(a) {
 
     return a;
 }
+},{"robust-orientation":164}],176:[function(require,module,exports){
+"use strict"
 
 // Take input from [0, n] and return it as [0, 1]
 function bound01(n, max) {
@@ -46843,6 +46924,10 @@ exports.free = function free(array) {
     var log_n = bits.log2(n)|0
     DATA[log_n].push(array)
   }
+
+  //Compile and link
+  var proc = new Function("genContour", code.join(""))
+  return proc(generateContourExtractor)
 }
 
 function freeArrayBuffer(buffer) {
@@ -54424,12 +54509,32 @@ function expandHorizontalMargin(gd) {
 * LICENSE file in the root directory of this source tree.
 */
 
+    traceToggle.on('click', function() {
+        if(gd._dragged) return;
 
-'use strict';
+        var legendItem = g.data()[0][0],
+            fullData = gd._fullData,
+            trace = legendItem.trace,
+            legendgroup = trace.legendgroup,
+            traceIndicesInGroup = [],
+            tracei,
+            newVisible;
 
 var Registry = require('../../registry');
 var helpers = require('./helpers');
 
+            Plotly.relayout(gd, 'hiddenlabels', hiddenSlices);
+        } else {
+            if(legendgroup === '') {
+                traceIndicesInGroup = [trace.index];
+            } else {
+                for(var i = 0; i < fullData.length; i++) {
+                    tracei = fullData[i];
+                    if(tracei.legendgroup === legendgroup) {
+                        traceIndicesInGroup.push(tracei.index);
+                    }
+                }
+            }
 
 module.exports = function getLegendData(calcdata, opts) {
     var lgroupToTraces = {},
@@ -54503,6 +54608,22 @@ module.exports = function getLegendData(calcdata, opts) {
             ltraces = lgroupToTraces[lgroups[i]];
             legendData[i] = helpers.isReversed(opts) ? ltraces.reverse() : ltraces;
         }
+
+        // make sure we're only getting full pixels
+        opts.width = Math.ceil(opts.width);
+        opts.height = Math.ceil(opts.height);
+
+        traces.each(function(d) {
+            var legendItem = d[0],
+                bg = d3.select(this).select('.legendtoggle');
+
+            bg.call(Drawing.setRect,
+                0,
+                -legendItem.height / 2,
+                (gd._context.editable ? 0 : opts.width) + 40,
+                legendItem.height
+            );
+        });
     }
     else {
         // collapse all groups into one if all groups are blank
@@ -54529,8 +54650,10 @@ module.exports = function getLegendData(calcdata, opts) {
 * LICENSE file in the root directory of this source tree.
 */
 
+            opts.width += opts.tracegroupgap + groupWidth;
 
-'use strict';
+            groupXOffsets.push(opts.width);
+        }
 
 var Registry = require('../../registry');
 
@@ -55334,8 +55457,14 @@ modeBarButtons.resetViews = {
 * LICENSE file in the root directory of this source tree.
 */
 
+function toggleHover(gd) {
+    var fullLayout = gd._fullLayout;
 
-'use strict';
+    var onHoverVal;
+    if(fullLayout._has('cartesian')) {
+        onHoverVal = fullLayout._isHoriz ? 'y' : 'x';
+    }
+    else onHoverVal = 'closest';
 
 exports.manage = require('./manage');
 
@@ -56141,6 +56270,8 @@ var anchorUtils = require('../legend/anchor_utils');
 var constants = require('./constants');
 var getUpdateObject = require('./get_update_object');
 
+var constants = require('./constants');
+var getUpdateObject = require('./get_update_object');
 
 module.exports = function draw(gd) {
     var fullLayout = gd._fullLayout;
@@ -56711,6 +56842,7 @@ var dragElement = require('../dragelement');
 var setCursor = require('../../lib/setcursor');
 
 var constants = require('./constants');
+var rangePlot = require('./range_plot');
 
 
 module.exports = function(gd) {
@@ -57550,6 +57682,10 @@ var setCursor = require('../../lib/setcursor');
 var constants = require('./constants');
 var helpers = require('./helpers');
 
+    // (from annos...) not sure how we're getting here... but C12 is seeing a bug
+    // where we fail here when they add/remove annotations
+    // TODO: clean this up and remove it.
+    if(!optionsIn) return;
 
 // Shapes are stored in gd.layout.shapes, an array of objects
 // index can point to one item in this array,
@@ -57730,6 +57866,11 @@ function setupDragElement(gd, shapePath, shapeOptions, index) {
             n0 = y1; astrN = astr + '.y1'; optN = 'y1';
             s0 = y0; astrS = astr + '.y0'; optS = 'y0';
         }
+        else {
+            x0 = x2p(shapeOptions.x0);
+            y0 = y2p(shapeOptions.y0);
+            x1 = x2p(shapeOptions.x1);
+            y1 = y2p(shapeOptions.y1);
 
         update = {};
 
@@ -58167,6 +58308,12 @@ module.exports = {
         dflt: true,
         
     },
+    value: {
+        valType: 'string',
+        
+        
+    }
+};
 
     active: {
         valType: 'number',
@@ -58349,7 +58496,6 @@ module.exports = {
 * This source code is licensed under the MIT license found in the
 * LICENSE file in the root directory of this source tree.
 */
-
 
 'use strict';
 
@@ -61223,6 +61369,10 @@ var nestedProperty = require('./nested_property');
 
 var ID_REGEX = /^([2-9]|[1-9][0-9]+)$/;
 
+function isValObject(obj) {
+    return obj && obj.valType !== undefined;
+}
+
 exports.valObjects = {
     data_array: {
         // You can use *dflt=[] to force said array to exist though.
@@ -62705,6 +62855,13 @@ lib.coerce = coerceModule.coerce;
 lib.coerce2 = coerceModule.coerce2;
 lib.coerceFont = coerceModule.coerceFont;
 lib.validate = coerceModule.validate;
+lib.isValObject = coerceModule.isValObject;
+lib.crawl = coerceModule.crawl;
+lib.findArrayAttributes = coerceModule.findArrayAttributes;
+lib.IS_SUBPLOT_OBJ = coerceModule.IS_SUBPLOT_OBJ;
+lib.IS_LINKED_TO_ARRAY = coerceModule.IS_LINKED_TO_ARRAY;
+lib.DEPRECATED = coerceModule.DEPRECATED;
+lib.UNDERSCORE_ATTRS = coerceModule.UNDERSCORE_ATTRS;
 
 var datesModule = require('./dates');
 lib.dateTime2ms = datesModule.dateTime2ms;
@@ -66468,6 +66625,7 @@ Plotly.plot = function(gd, data, layout, config) {
         Registry.getComponentMethod('rangeselector', 'draw')(gd);
         Registry.getComponentMethod('sliders', 'draw')(gd);
         Registry.getComponentMethod('updatemenus', 'draw')(gd);
+        Registry.getComponentMethod('sliders', 'draw')(gd);
 
         for(i = 0; i < calcdata.length; i++) {
             cd = calcdata[i];
@@ -66614,6 +66772,7 @@ Plotly.plot = function(gd, data, layout, config) {
         Registry.getComponentMethod('rangeselector', 'draw')(gd);
         Registry.getComponentMethod('sliders', 'draw')(gd);
         Registry.getComponentMethod('updatemenus', 'draw')(gd);
+        Registry.getComponentMethod('sliders', 'draw')(gd);
     }
 
     var seq = [
@@ -76135,6 +76294,55 @@ exports.clean = function(newFullData, newFullLayout, oldFullData, oldFullLayout)
             oldFullLayout._infolayer.select('.' + axIds[i] + 'title').remove();
         }
     }
+
+    var hadCartesian = (oldFullLayout._has && oldFullLayout._has('cartesian'));
+    var hasCartesian = (newFullLayout._has && newFullLayout._has('cartesian'));
+
+    if(hadCartesian && !hasCartesian) {
+        var subplotLayers = oldFullLayout._cartesianlayer.selectAll('.subplot');
+
+        subplotLayers.call(purgeSubplotLayers, oldFullLayout);
+        oldFullLayout._defs.selectAll('.axesclip').remove();
+    }
+};
+
+exports.drawFramework = function(gd) {
+    var fullLayout = gd._fullLayout,
+        subplotData = makeSubplotData(gd);
+
+    var subplotLayers = fullLayout._cartesianlayer.selectAll('.subplot')
+        .data(subplotData, Lib.identity);
+
+    subplotLayers.enter().append('g')
+        .attr('class', function(name) { return 'subplot ' + name; });
+
+    subplotLayers.order();
+
+    subplotLayers.exit()
+        .call(purgeSubplotLayers, fullLayout);
+
+    subplotLayers.each(function(name) {
+        var plotinfo = fullLayout._plots[name];
+
+        // keep ref to plot group
+        plotinfo.plotgroup = d3.select(this);
+
+        // initialize list of overlay subplots
+        plotinfo.overlays = [];
+
+        makeSubplotLayer(plotinfo);
+
+        // fill in list of overlay subplots
+        if(plotinfo.mainplot) {
+            var mainplot = fullLayout._plots[plotinfo.mainplot];
+            mainplot.overlays.push(plotinfo);
+        }
+
+        // make separate drag layers for each subplot,
+        // but append them to paper rather than the plot groups,
+        // so they end up on top of the rest
+        plotinfo.draglayer = joinLayer(fullLayout._draggers, 'g', name);
+    });
 };
 
 exports.drawFramework = function(gd) {
@@ -79274,6 +79482,7 @@ function Scene2D(options, fullLayout) {
 
     // trace set
     this.traces = {};
+    this._inputs = {};
 
     // create axes spikes
     this.spikes = createSpikes(this.glplot);
@@ -79742,6 +79951,24 @@ proto.emitPointAction = function(nextSelection, eventType) {
             curveNumber: trace.index,
             pointNumber: nextSelection.pointIndex,
             data: trace._input,
+            fullData: this.fullData,
+            xaxis: this.xaxis,
+            yaxis: this.yaxis
+        }]
+    });
+};
+
+proto.emitPointAction = function(nextSelection, eventType) {
+
+    var curveIndex = this._inputs[nextSelection.trace.uid];
+
+    this.graphDiv.emit(eventType, {
+        points: [{
+            x: nextSelection.traceCoord[0],
+            y: nextSelection.traceCoord[1],
+            curveNumber: curveIndex,
+            pointNumber: nextSelection.pointIndex,
+            data: this.fullData[curveIndex]._input,
             fullData: this.fullData,
             xaxis: this.xaxis,
             yaxis: this.yaxis
@@ -80564,6 +80791,9 @@ plots.supplyDefaults = function(gd) {
         var ax = axList[i];
         ax.setScale();
     }
+
+    // relink / initialize subplot axis objects
+    plots.linkSubplots(newFullData, newFullLayout, oldFullData, oldFullLayout);
 
     // update object references in calcdata
     if((gd.calcdata || []).length === newFullData.length) {

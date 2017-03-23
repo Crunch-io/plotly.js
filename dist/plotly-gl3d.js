@@ -552,6 +552,8 @@ proto.getDistance = function(t) {
 proto.getDistanceLimits = function(out) {
   return this._active.getDistanceLimits(out)
 }
+},{"3d-view":9,"mouse-change":177,"mouse-wheel":179,"right-now":213}],9:[function(require,module,exports){
+'use strict'
 
 proto.lastT = function() {
   return this._active.lastT()
@@ -689,6 +691,8 @@ function linearlyIndependent(points, d) {
   }
   return false
 }
+},{"matrix-camera-controller":175,"orbit-camera-controller":195,"turntable-camera-controller":243}],10:[function(require,module,exports){
+'use strict'
 
 function affineHull(points) {
   var n = points.length
@@ -1588,6 +1592,7 @@ function BN(number, base, endian) {
       Array.isArray(number.words)) {
     return number;
   }
+})(REVERSE_TABLE);
 
   this.sign = false;
   this.words = null;
@@ -2640,6 +2645,11 @@ BN.prototype.ishrn = function ishrn(bits, hint, extended) {
       maskedWords.words[i] = this.words[i];
     maskedWords.length = s;
   }
+  src.push('if (c !== 0) {',
+           '  o[' + k + '] = c;',
+           '  out.length++;',
+           '}',
+           'return out;');
 
   if (s === 0) {
     // No-op, we should not move anything at all
@@ -3521,6 +3531,8 @@ K256.prototype.imulK = function imulK(num) {
 
     lo = hi;
   }
+  return res;
+};
 
   // Fast length reduction
   if (num.words[num.length - 1] === 0) {
@@ -3963,6 +3975,7 @@ function boxIntersect(red, blue, visit, full) {
   if(d <= 0) {
     return
   }
+  assert(q.cmpn(0) !== 0);
 
   var retval
 
@@ -4733,6 +4746,7 @@ function findMedian(d, axis, start, end, boxes, ids) {
   if(end <= start+1) {
     return start
   }
+}
 
   var lo       = start
   var hi       = end
@@ -4827,7 +4841,12 @@ function findMedian(d, axis, start, end, boxes, ids) {
     } else {
       break
     }
+    var retval = visit(redId, blueId)
+    if(retval !== void 0) {
+      return retval
+    }
   }
+}
 
   //Make sure pivot is at start
   return partitionStartLessThan(
@@ -4929,6 +4948,8 @@ function rotate(i, j, k, data) {
   data[k] = x
   data[k+1] = y
 }
+},{"./brute":39,"./median":41,"./partition":42,"./sweep":44,"bit-twiddle":35,"typedarray-pool":246}],41:[function(require,module,exports){
+'use strict'
 
 function shufflePivot(i, j, px, py, data) {
   i *= 2
@@ -5154,6 +5175,8 @@ function sqInit(count) {
     SWEEP_EVENTS = pool.mallocDouble(eventLength)
   }
 }
+},{"./partition":42}],42:[function(require,module,exports){
+'use strict'
 
 //Remove an item from the active queue in O(1)
 function sqPop(queue, index, count, item) {
@@ -5204,6 +5227,7 @@ function sweepBipartite(
     SWEEP_EVENTS[ptr++] = blue[blueOffset+iend]
     SWEEP_EVENTS[ptr++] = idx
   }
+}
 
   //process events from left->right
   var n = ptr >>> 1
@@ -6309,6 +6333,7 @@ function asciiWrite (buf, string, offset, length) {
 function latin1Write (buf, string, offset, length) {
   return asciiWrite(buf, string, offset, length)
 }
+Buffer.byteLength = byteLength
 
 function base64Write (buf, string, offset, length) {
   return blitBuffer(base64ToBytes(string), buf, offset, length)
@@ -7293,6 +7318,8 @@ function toByteArray (b64) {
     arr[L++] = (tmp >> 8) & 0xFF
     arr[L++] = tmp & 0xFF
   }
+  return offset + 4
+}
 
   if (placeHolders === 2) {
     tmp = (revLookup[b64.charCodeAt(i)] << 2) | (revLookup[b64.charCodeAt(i + 1)] >> 4)
@@ -7898,6 +7925,8 @@ function monotoneTriangulate(points, edges) {
         new Event(a, b, EVENT_END, i))
     }
   }
+  return dflt
+}
 
   //Sort events
   events.sort(compareEvent)
@@ -8185,6 +8214,10 @@ function circumradius(points) {
     for(var j=0; j<center.length; ++j) {
       avgDist += Math.pow(p[j] - center[j], 2)
     }
+    key[0] = x
+    key[1] = y
+    key[2] = z
+    return bsearch.eq(this.cells, key, compareCell)
   }
   return Math.sqrt(avgDist / points.length)
 }
@@ -8352,6 +8385,8 @@ function cutEdges(floatPoints, edges, crossings, junctions, useColor) {
       s = t
       t = tmp
     }
+    lowerIds.length = m
+    lowerIds.push(idx)
 
     //Split leading edge
     edge[0] = s
@@ -8401,6 +8436,8 @@ function dedupPoints(floatPoints, ratPoints, floatBounds) {
     bounds.push([ xb[0], yb[0], xb[1], yb[1] ])
     floatPoints.push([ ratToFloat(p[0]), ratToFloat(p[1]) ])
   }
+  return d || hull.idx - edge.idx
+}
 
   //Link all points with over lapping boxes
   boxIntersect(bounds, function(i, j) {
@@ -8519,6 +8556,7 @@ function snapRound(points, edges, useColor) {
   if(!labels) {
     return (crossings.length > 0 || tjunctions.length > 0)
   }
+})()
 
   // More iterations necessary
   return true
@@ -8555,6 +8593,8 @@ function cleanPSLG(points, edges, colors) {
       colors.push(e[2])
     }
   }
+  return result
+}
 
   return modified
 }
@@ -8695,6 +8735,9 @@ function clone(parent, circular, depth, prototype) {
       allParents.push(parent);
       allChildren.push(child);
     }
+  })
+  return result
+}
 
     for (var i in parent) {
       var attrs;
@@ -9763,6 +9806,8 @@ function invPermute(cells, front) {
   }
   return cells
 }
+},{"robust-orientation":219,"robust-product":220,"robust-sum":224,"signum":225,"two-sum":245}],63:[function(require,module,exports){
+module.exports = compareCells
 
 function convexHullnD(points, d) {
   try {
@@ -11230,6 +11275,7 @@ module.exports = require("cwise-compiler")
             }
             keyValues[i] = keyValue;
           }
+          nodeByKeyValue.set(keyValue, true);
         }
         for (i = -1; ++i < m; ) {
           if (!(node = nodeByKeyValue.get(keyValue = key.call(groupData, nodeData = groupData[i], i)))) {
@@ -13848,6 +13894,7 @@ module.exports = require("cwise-compiler")
       clean: function() {
         return 2 - clean;
       }
+      return clip;
     };
   }
   function d3_geo_clipAntimeridianIntersect(λ0, φ0, λ1, φ1) {
@@ -14567,6 +14614,10 @@ module.exports = require("cwise-compiler")
           resampleLineTo(x2, y2, λ2, a, b, c, x1, y1, λ1, a1, b1, c1, depth, stream);
         }
       }
+      return clip;
+    };
+    function corner(p, direction) {
+      return abs(p[0] - x0) < ε ? direction > 0 ? 0 : 3 : abs(p[0] - x1) < ε ? direction > 0 ? 2 : 1 : abs(p[1] - y0) < ε ? direction > 0 ? 1 : 0 : direction > 0 ? 3 : 2;
     }
     resample.precision = function(_) {
       if (!arguments.length) return Math.sqrt(δ2);
@@ -15783,6 +15834,9 @@ module.exports = require("cwise-compiler")
             node = this._;
             break;
           }
+          subject.push(d);
+        } else if (d3_geom_polygonInside(c, a, b)) {
+          subject.push(d3_geom_polygonIntersect(c, d, a, b));
         }
         sibling.C = true;
         node = parent;
@@ -17379,6 +17433,12 @@ module.exports = require("cwise-compiler")
           }
         }
       }
+      d3_layout_hierarchyVisitAfter(root, function(node) {
+        var childs, parent;
+        if (sort && (childs = node.children)) childs.sort(sort);
+        if (value && (parent = node.parent)) parent.value += node.value;
+      });
+      return nodes;
     }
     var cx = (xMin + xMax) / 2, cy = (yMin + yMax) / 2, cr = 0;
     for (i = 0; i < n; i++) {
@@ -17656,6 +17716,7 @@ module.exports = require("cwise-compiler")
             row.length = row.area = 0;
             best = Infinity;
           }
+          s2 += s3 * data[i][j][1];
         }
         if (row.length) {
           position(row, u, rect, true);
@@ -17721,6 +17782,7 @@ module.exports = require("cwise-compiler")
         rect.x += v;
         rect.dx -= v;
       }
+      return bins;
     }
     function treemap(d) {
       var nodes = stickies || hierarchy(d), root = nodes[0];
@@ -19065,6 +19127,8 @@ module.exports = require("cwise-compiler")
           subgroup.push(null);
         }
       }
+      if (points0.length) segment();
+      return segments.length ? segments.join("") : null;
     }
     return d3_transition(subgroups, ns, id);
   };
@@ -19203,6 +19267,7 @@ module.exports = require("cwise-compiler")
     return function() {
       this.textContent = b;
     };
+    return area;
   }
   d3_transitionPrototype.remove = function() {
     var ns = this.namespace;
@@ -21895,6 +21960,12 @@ proto.curve = function(t) {
     } else {
       cubicHermite(x0, v0, x1, v1, (t-t0)/dt, result)
     }
+  } else if (isObject(handler)) {
+    args = Array.prototype.slice.call(arguments, 1);
+    listeners = handler.slice();
+    len = listeners.length;
+    for (i = 0; i < len; i++)
+      listeners[i].apply(this, args);
   }
   var lo = bounds[0]
   var hi = bounds[1]
@@ -23460,6 +23531,7 @@ i_loop:
       this.ticks,
       this.tickFont)
   }
+})
 
   //Update lines if necessary
   if(this._lines && ticksUpdate) {
@@ -23563,6 +23635,8 @@ proto.draw = function(params) {
     this.lastCubeProps.cubeEdges[i] = cubeEdges[i]
     this.lastCubeProps.axis[i] = cubeAxis[i]
   }
+  return new RedBlackTree(this.tree._compare, cstack[0])
+}
 
   //Compute axis info
   var lineOffset  = LINE_OFFSET
@@ -23762,6 +23836,7 @@ proto.draw = function(model, view, projection, bounds, enable, colors) {
   if(!needsBG) {
     return
   }
+})
 
   var gl = this.gl
 
@@ -25243,13 +25318,16 @@ function ErrorBars(gl, buffer, vao, shader) {
 
 var proto = ErrorBars.prototype
 
-proto.isOpaque = function() {
-  return this.opacity >= 1
+  var screenAxis = zeroVec(SCREEN_AXIS)
+  screenAxis[(j+1)%3] = 1
+  this.shader.uniforms.screenAxis = screenAxis
+  this.vao.draw(this.gl.TRIANGLES, 6)
 }
 
-proto.isTransparent = function() {
-  return this.opacity < 1
-}
+proto.drawAxisTicks = function(j, offset, minorAxis, color, lineWidth) {
+  if(!this.tickCount[j]) {
+    return
+  }
 
 proto.drawTransparent = proto.draw = function(cameraParams) {
   var gl = this.gl
@@ -25601,6 +25679,7 @@ function rebuildFBO(fbo) {
       fbo._depth_rb = initRenderBuffer(gl, width, height, gl.STENCIL_INDEX, gl.STENCIL_ATTACHMENT)
     }
   }
+}
 
   //Check frame buffer state
   var status = gl.checkFramebufferStatus(gl.FRAMEBUFFER)
@@ -25696,6 +25775,8 @@ function reshapeFBO(fbo, w, h) {
   if(fbo._destroyed) {
     throw new Error('gl-fbo: Can\'t resize destroyed FBO')
   }
+  return result
+}
 
   //Don't resize if no change in shape
   if( (fbo._shape[0] === w) &&
@@ -27314,6 +27395,8 @@ function closestPointToPickLocation(simplex, pixelCoord, model, view, projection
   for(var i=0; i<simplex.length; ++i) {
     simplex2D[i] = projectVertex(simplex[i], model, view, projection, resolution);
   }
+  var texture = createTexture(gl, defaultTexture)
+  texture.wrap = gl.REPEAT
 
   var closestIndex = 0
   var closestDist  = Infinity
@@ -28035,6 +28118,8 @@ proto.drawTransparent = proto.draw = function(params) {
 
     texture:    0
   }
+  return [ 0.5 * resolution[0] * (1.0+p[0]), 0.5 * resolution[1] * (1.0-p[1]) ]
+}
 
   this.texture.bind(0)
 
@@ -36158,6 +36243,8 @@ proto.getDistanceLimits = function(out) {
   }
   return lim
 }
+},{}],173:[function(require,module,exports){
+var lerp = require('gl-vec3/lerp')
 
 function createMatrixCameraController(options) {
   options = options || {}
@@ -36583,6 +36670,7 @@ function mouseWheelListen(element, callback, noScroll) {
     if(dx || dy || dz) {
       return callback(dx, dy, dz, ev)
     }
+    upper.push(idx)
   }
   element.addEventListener('wheel', listener)
   return listener
@@ -37176,6 +37264,12 @@ function generateGradient(boundaryConditions) {
       }
       code.push(');')
     }
+    var jperm = permBitmask(dimension, j, order)
+    vars.push(pdelta(jperm) + "=(-" + cubeDelta.join("-") + ")|0",
+              qcube(jperm) + "=(" + signFlag + cubeDelta.join("-") + ")|0",
+              pcube(jperm) + "=0")
+  }
+  vars.push(vert(0) + "=0", TEMPORARY + "=0")
 
     for(var i=0; i<facet.length; ++i) {
       var bnd = Math.abs(facet[i])-1
@@ -38143,6 +38237,8 @@ function createInsertionSort(order, dtype) {
     return result()
   }
 }
+},{"gl-matrix-invert":122,"ndarray-warp":190}],184:[function(require,module,exports){
+"use strict"
 
 function createQuickSort(order, dtype, insertionSort) {
   var code = [ "'use strict'" ]
@@ -38596,6 +38692,10 @@ function createQuickSort(order, dtype, insertionSort) {
   var compiled = new Function("insertionSort", code.join("\n"))
   return compiled(insertionSort)
 }
+module.exports = interpolate
+module.exports.d1 = interp1d
+module.exports.d2 = interp2d
+module.exports.d3 = interp3d
 
 function compileSort(order, dtype) {
   var code = ["'use strict'"]
@@ -39057,6 +39157,7 @@ function wrappedNDArrayCtor(data, shape, stride, offset) {
       if(stride[i] < 0) {
         offset -= (shape[i]-1)*stride[i]
       }
+      code.push(["dptr+=d",j,";sptr+=d",j].join(""),"}")
     }
   }
   var dtype = arrayDType(data)
@@ -39168,6 +39269,7 @@ exports.vertexNormals = function(faces, positions, specifiedEpsilon) {
           norm[k] += w * (d21[u] * d01[v] - d21[v] * d01[u]);
         }
       }
+      code.push("}")
     }
   }
 
@@ -39487,6 +39589,7 @@ proto.rotate = function(t, dx, dy, dz) {
     bx = by = bz = 0.0
     bw = 1.0
   }
+  code.push("var ctor=CTOR_LIST[a.length+1];return ctor(this.data,a,b,c)}")
 
   var rotation = this.computedRotation
   var ax = rotation[0]
@@ -40872,47 +40975,54 @@ function reduceCellComplex(cells) {
  * Licensed under the MIT License.
  */
 
-'use strict';
+function planarGraphToPolyline(edges, positions) {
 
-/**
- * Results cache
- */
+  //Trim leaves
+  var result = trimLeaves(edges, positions)
+  edges = result[0]
+  positions = result[1]
 
-var res = '';
-var cache;
+  var numVertices = positions.length
+  var numEdges = edges.length
 
-/**
- * Expose `repeat`
- */
+  //Calculate adjacency list, check manifold
+  var adj = e2a(edges, positions.length)
+  for(var i=0; i<numVertices; ++i) {
+    if(adj[i].length % 2 === 1) {
+      throw new Error('planar-graph-to-polyline: graph must be manifold')
+    }
+  }
 
-module.exports = repeat;
+  //Get faces
+  var faces = planarDual(edges, positions)
 
-/**
- * Repeat the given `string` the specified `number`
- * of times.
- *
- * **Example:**
- *
- * ```js
- * var repeat = require('repeat-string');
- * repeat('A', 5);
- * //=> AAAAA
- * ```
- *
- * @param {String} `string` The string to repeat
- * @param {Number} `number` The number of times to repeat the string
- * @return {String} Repeated string
- * @api public
- */
+  //Check orientation of a polygon using exact arithmetic
+  function ccw(c) {
+    var n = c.length
+    var area = [0]
+    for(var j=0; j<n; ++j) {
+      var a = positions[c[j]]
+      var b = positions[c[(j+1)%n]]
+      var t00 = twoProduct(-a[0], a[1])
+      var t01 = twoProduct(-a[0], b[1])
+      var t10 = twoProduct( b[0], a[1])
+      var t11 = twoProduct( b[0], b[1])
+      area = robustSum(area, robustSum(robustSum(t00, t01), robustSum(t10, t11)))
+    }
+    return area[area.length-1] > 0
+  }
 
 function repeat(str, num) {
   if (typeof str !== 'string') {
     throw new TypeError('expected a string');
   }
 
-  // cover common, quick use cases
-  if (num === 1) return str;
-  if (num === 2) return str + str;
+  //Initialize face adjacency list
+  var fadj = makeArrayOfArrays(numFaces)
+  for(var i=0; i<numFaces; ++i) {
+    fadj[i].push(parent[i])
+    fadj[parent[i]].push(i)
+  }
 
   var max = str.length * num;
   if (cache !== str || typeof cache === 'undefined') {
@@ -40926,6 +41036,7 @@ function repeat(str, num) {
     if (num & 1) {
       res += str;
     }
+  }
 
     num >>= 1;
     str += str;
@@ -40935,6 +41046,8 @@ function repeat(str, num) {
   res = res.substr(0, max);
   return res;
 }
+},{"./lib/trim-leaves":201,"edges-to-adjacency-list":78,"planar-dual":200,"point-in-big-polygon":203,"robust-sum":224,"two-product":244,"uniq":248}],203:[function(require,module,exports){
+module.exports = preprocessPolygon
 
 },{}],222:[function(require,module,exports){
 (function (global){
@@ -40977,112 +41090,247 @@ function compressExpansion(e) {
     if(q) {
       e[top++] = q
     }
+    return testNormal(p)
   }
-  e[top++] = Q
-  e.length = top
-  return e
 }
-},{}],224:[function(require,module,exports){
-"use strict"
 
-var twoProduct = require("two-product")
-var robustSum = require("robust-sum")
-var robustScale = require("robust-scale")
-var compress = require("robust-compress")
+function preprocessPolygon(loops) {
+  //Compute number of loops
+  var numLoops = loops.length
 
-var NUM_EXPANDED = 6
-
-function cofactor(m, c) {
-  var result = new Array(m.length-1)
-  for(var i=1; i<m.length; ++i) {
-    var r = result[i-1] = new Array(m.length-1)
-    for(var j=0,k=0; j<m.length; ++j) {
-      if(j === c) {
-        continue
+  //Unpack segments
+  var segments = []
+  var vsegments = []
+  var ptr = 0
+  for(var i=0; i<numLoops; ++i) {
+    var loop = loops[i]
+    var numVertices = loop.length
+    for(var s=numVertices-1,t=0; t<numVertices; s=(t++)) {
+      var a = loop[s]
+      var b = loop[t]
+      if(a[0] === b[0]) {
+        vsegments.push([a,b])
+      } else {
+        segments.push([a,b])
       }
-      r[k++] = m[i][j]
     }
   }
-  return result
-}
 
-function matrix(n) {
-  var result = new Array(n)
-  for(var i=0; i<n; ++i) {
-    result[i] = new Array(n)
-    for(var j=0; j<n; ++j) {
-      result[i][j] = ["m[", i, "][", j, "]"].join("")
+  //Degenerate case: All loops are empty
+  if(segments.length === 0) {
+    if(vsegments.length === 0) {
+      return classifyEmpty
+    } else {
+      return createClassifyVertical(buildVerticalIndex(vsegments))
     }
   }
-  return result
-}
 
-function sign(n) {
-  if(n & 1) {
-    return "-"
-  }
-  return ""
-}
+  //Build slab decomposition
+  var slabs = makeSlabs(segments)
+  var testSlab = buildSlabSearch(slabs.slabs, slabs.coordinates)
 
-function generateSum(expr) {
-  if(expr.length === 1) {
-    return expr[0]
-  } else if(expr.length === 2) {
-    return ["sum(", expr[0], ",", expr[1], ")"].join("")
+  if(vsegments.length === 0) {
+    return testSlab
   } else {
-    var m = expr.length>>1
-    return ["sum(", generateSum(expr.slice(0, m)), ",", generateSum(expr.slice(m)), ")"].join("")
+    return createClassifyPointDegen(
+      buildVerticalIndex(vsegments),
+      testSlab)
   }
 }
+},{"binary-search-bounds":34,"interval-tree-1d":166,"robust-orientation":219,"slab-decomposition":235}],204:[function(require,module,exports){
+//Optimized version for triangle closest point
+// Based on Eberly's WildMagick codes
+// http://www.geometrictools.com/LibMathematics/Distance/Distance.html
+"use strict";
 
-function determinant(m) {
-  if(m.length === 2) {
-    return ["sum(prod(", m[0][0], ",", m[1][1], "),prod(-", m[0][1], ",", m[1][0], "))"].join("")
-  } else {
-    var expr = []
-    for(var i=0; i<m.length; ++i) {
-      expr.push(["scale(", determinant(cofactor(m, i)), ",", sign(i), m[0][i], ")"].join(""))
+var diff = new Float64Array(4);
+var edge0 = new Float64Array(4);
+var edge1 = new Float64Array(4);
+
+function closestPoint2d(V0, V1, V2, point, result) {
+  //Reallocate buffers if necessary
+  if(diff.length < point.length) {
+    diff = new Float64Array(point.length);
+    edge0 = new Float64Array(point.length);
+    edge1 = new Float64Array(point.length);
+  }
+  //Compute edges
+  for(var i=0; i<point.length; ++i) {
+    diff[i]  = V0[i] - point[i];
+    edge0[i] = V1[i] - V0[i];
+    edge1[i] = V2[i] - V0[i];
+  }
+  //Compute coefficients for quadratic func
+  var a00 = 0.0
+    , a01 = 0.0
+    , a11 = 0.0
+    , b0  = 0.0
+    , b1  = 0.0
+    , c   = 0.0;
+  for(var i=0; i<point.length; ++i) {
+    var e0 = edge0[i]
+      , e1 = edge1[i]
+      , d  = diff[i];
+    a00 += e0 * e0;
+    a01 += e0 * e1;
+    a11 += e1 * e1;
+    b0  += d * e0;
+    b1  += d * e1;
+    c   += d * d;
+  }
+  //Compute determinant/coeffs
+  var det = Math.abs(a00*a11 - a01*a01);
+  var s   = a01*b1 - a11*b0;
+  var t   = a01*b0 - a00*b1;
+  var sqrDistance;
+  //Hardcoded Voronoi diagram classification
+  if (s + t <= det) {
+    if (s < 0) {
+      if (t < 0) { // region 4
+        if (b0 < 0) {
+          t = 0;
+          if (-b0 >= a00) {
+            s = 1.0;
+            sqrDistance = a00 + 2.0*b0 + c;
+          } else {
+            s = -b0/a00;
+            sqrDistance = b0*s + c;
+          }
+        } else {
+          s = 0;
+          if (b1 >= 0) {
+            t = 0;
+            sqrDistance = c;
+          } else if (-b1 >= a11) {
+            t = 1;
+            sqrDistance = a11 + 2.0*b1 + c;
+          } else {
+            t = -b1/a11;
+            sqrDistance = b1*t + c;
+          }
+        }
+      } else {  // region 3
+        s = 0;
+        if (b1 >= 0) {
+          t = 0;
+          sqrDistance = c;
+        } else if (-b1 >= a11) {
+          t = 1;
+          sqrDistance = a11 + 2.0*b1 + c;
+        } else {
+          t = -b1/a11;
+          sqrDistance = b1*t + c;
+        }
+      }
+    } else if (t < 0) { // region 5
+      t = 0;
+      if (b0 >= 0) {
+        s = 0;
+        sqrDistance = c;
+      } else if (-b0 >= a00) {
+        s = 1;
+        sqrDistance = a00 + 2.0*b0 + c;
+      } else {
+        s = -b0/a00;
+        sqrDistance = b0*s + c;
+      }
+    } else {  // region 0
+      // minimum at interior point
+      var invDet = 1.0 / det;
+      s *= invDet;
+      t *= invDet;
+      sqrDistance = s*(a00*s + a01*t + 2.0*b0) + t*(a01*s + a11*t + 2.0*b1) + c;
     }
-    return generateSum(expr)
+  } else {
+    var tmp0, tmp1, numer, denom;
+    
+    if (s < 0) {  // region 2
+      tmp0 = a01 + b0;
+      tmp1 = a11 + b1;
+      if (tmp1 > tmp0) {
+        numer = tmp1 - tmp0;
+        denom = a00 - 2.0*a01 + a11;
+        if (numer >= denom) {
+          s = 1;
+          t = 0;
+          sqrDistance = a00 + 2.0*b0 + c;
+        } else {
+          s = numer/denom;
+          t = 1 - s;
+          sqrDistance = s*(a00*s + a01*t + 2.0*b0) +
+          t*(a01*s + a11*t + 2.0*b1) + c;
+        }
+      } else {
+        s = 0;
+        if (tmp1 <= 0) {
+          t = 1;
+          sqrDistance = a11 + 2.0*b1 + c;
+        } else if (b1 >= 0) {
+          t = 0;
+          sqrDistance = c;
+        } else {
+          t = -b1/a11;
+          sqrDistance = b1*t + c;
+        }
+      }
+    } else if (t < 0) {  // region 6
+      tmp0 = a01 + b1;
+      tmp1 = a00 + b0;
+      if (tmp1 > tmp0) {
+        numer = tmp1 - tmp0;
+        denom = a00 - 2.0*a01 + a11;
+        if (numer >= denom) {
+          t = 1;
+          s = 0;
+          sqrDistance = a11 + 2.0*b1 + c;
+        } else {
+          t = numer/denom;
+          s = 1 - t;
+          sqrDistance = s*(a00*s + a01*t + 2.0*b0) +
+          t*(a01*s + a11*t + 2.0*b1) + c;
+        }
+      } else {
+        t = 0;
+        if (tmp1 <= 0) {
+          s = 1;
+          sqrDistance = a00 + 2.0*b0 + c;
+        } else if (b0 >= 0) {
+          s = 0;
+          sqrDistance = c;
+        } else {
+          s = -b0/a00;
+          sqrDistance = b0*s + c;
+        }
+      }
+    } else {  // region 1
+      numer = a11 + b1 - a01 - b0;
+      if (numer <= 0) {
+        s = 0;
+        t = 1;
+        sqrDistance = a11 + 2.0*b1 + c;
+      } else {
+        denom = a00 - 2.0*a01 + a11;
+        if (numer >= denom) {
+          s = 1;
+          t = 0;
+          sqrDistance = a00 + 2.0*b0 + c;
+        } else {
+          s = numer/denom;
+          t = 1 - s;
+          sqrDistance = s*(a00*s + a01*t + 2.0*b0) +
+          t*(a01*s + a11*t + 2.0*b1) + c;
+        }
+      }
+    }
   }
-}
-
-function compileDeterminant(n) {
-  var proc = new Function("sum", "scale", "prod", "compress", [
-    "function robustDeterminant",n, "(m){return compress(", 
-      determinant(matrix(n)),
-    ")};return robustDeterminant", n].join(""))
-  return proc(robustSum, robustScale, twoProduct, compress)
-}
-
-var CACHE = [
-  function robustDeterminant0() { return [0] },
-  function robustDeterminant1(m) { return [m[0][0]] }
-]
-
-function generateDispatch() {
-  while(CACHE.length < NUM_EXPANDED) {
-    CACHE.push(compileDeterminant(CACHE.length))
+  var u = 1.0 - s - t;
+  for(var i=0; i<point.length; ++i) {
+    result[i] = u * V0[i] + s * V1[i] + t * V2[i];
   }
-  var procArgs = []
-  var code = ["function robustDeterminant(m){switch(m.length){"]
-  for(var i=0; i<NUM_EXPANDED; ++i) {
-    procArgs.push("det" + i)
-    code.push("case ", i, ":return det", i, "(m);")
+  if(sqrDistance < 0) {
+    return 0;
   }
-  code.push("}\
-var det=CACHE[m.length];\
-if(!det)\
-det=CACHE[m.length]=gen(m.length);\
-return det(m);\
-}\
-return robustDeterminant")
-  procArgs.push("CACHE", "gen", code.join(""))
-  var proc = Function.apply(undefined, procArgs)
-  module.exports = proc.apply(undefined, CACHE.concat([CACHE, compileDeterminant]))
-  for(var i=0; i<CACHE.length; ++i) {
-    module.exports[i] = CACHE[i]
-  }
+  return sqrDistance;
 }
 
 generateDispatch()
@@ -41344,191 +41592,204 @@ generateDispatch()
 },{"robust-determinant":224}],228:[function(require,module,exports){
 "use strict"
 
-var twoProduct = require("two-product")
-var robustSum = require("robust-sum")
-var robustScale = require("robust-scale")
-var robustSubtract = require("robust-subtract")
+},{}],205:[function(require,module,exports){
+// shim for using process in browser
+var process = module.exports = {};
 
-var NUM_EXPAND = 5
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
 
-var EPSILON     = 1.1102230246251565e-16
-var ERRBOUND3   = (3.0 + 16.0 * EPSILON) * EPSILON
-var ERRBOUND4   = (7.0 + 56.0 * EPSILON) * EPSILON
+var cachedSetTimeout;
+var cachedClearTimeout;
 
-function cofactor(m, c) {
-  var result = new Array(m.length-1)
-  for(var i=1; i<m.length; ++i) {
-    var r = result[i-1] = new Array(m.length-1)
-    for(var j=0,k=0; j<m.length; ++j) {
-      if(j === c) {
-        continue
-      }
-      r[k++] = m[i][j]
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
+(function () {
+    try {
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
+        }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
     }
-  }
-  return result
-}
-
-function matrix(n) {
-  var result = new Array(n)
-  for(var i=0; i<n; ++i) {
-    result[i] = new Array(n)
-    for(var j=0; j<n; ++j) {
-      result[i][j] = ["m", j, "[", (n-i-1), "]"].join("")
+    try {
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
+        }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
     }
-  }
-  return result
-}
-
-function sign(n) {
-  if(n & 1) {
-    return "-"
-  }
-  return ""
-}
-
-function generateSum(expr) {
-  if(expr.length === 1) {
-    return expr[0]
-  } else if(expr.length === 2) {
-    return ["sum(", expr[0], ",", expr[1], ")"].join("")
-  } else {
-    var m = expr.length>>1
-    return ["sum(", generateSum(expr.slice(0, m)), ",", generateSum(expr.slice(m)), ")"].join("")
-  }
-}
-
-function determinant(m) {
-  if(m.length === 2) {
-    return [["sum(prod(", m[0][0], ",", m[1][1], "),prod(-", m[0][1], ",", m[1][0], "))"].join("")]
-  } else {
-    var expr = []
-    for(var i=0; i<m.length; ++i) {
-      expr.push(["scale(", generateSum(determinant(cofactor(m, i))), ",", sign(i), m[0][i], ")"].join(""))
+} ())
+function runTimeout(fun) {
+    if (cachedSetTimeout === setTimeout) {
+        //normal enviroments in sane situations
+        return setTimeout(fun, 0);
     }
-    return expr
-  }
-}
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
+        return setTimeout(fun, 0);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedSetTimeout(fun, 0);
+    } catch(e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+            return cachedSetTimeout.call(null, fun, 0);
+        } catch(e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+            return cachedSetTimeout.call(this, fun, 0);
+        }
+    }
 
-function orientation(n) {
-  var pos = []
-  var neg = []
-  var m = matrix(n)
-  var args = []
-  for(var i=0; i<n; ++i) {
-    if((i&1)===0) {
-      pos.push.apply(pos, determinant(cofactor(m, i)))
+
+}
+function runClearTimeout(marker) {
+    if (cachedClearTimeout === clearTimeout) {
+        //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
+        return clearTimeout(marker);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedClearTimeout(marker);
+    } catch (e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+            return cachedClearTimeout.call(null, marker);
+        } catch (e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+            return cachedClearTimeout.call(this, marker);
+        }
+    }
+
+
+
+}
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
     } else {
-      neg.push.apply(neg, determinant(cofactor(m, i)))
+        queueIndex = -1;
     }
-    args.push("m" + i)
-  }
-  var posExpr = generateSum(pos)
-  var negExpr = generateSum(neg)
-  var funcName = "orientation" + n + "Exact"
-  var code = ["function ", funcName, "(", args.join(), "){var p=", posExpr, ",n=", negExpr, ",d=sub(p,n);\
-return d[d.length-1];};return ", funcName].join("")
-  var proc = new Function("sum", "prod", "scale", "sub", code)
-  return proc(robustSum, twoProduct, robustScale, robustSubtract)
+    if (queue.length) {
+        drainQueue();
+    }
 }
 
-var orientation3Exact = orientation(3)
-var orientation4Exact = orientation(4)
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = runTimeout(cleanUpNextTick);
+    draining = true;
 
-var CACHED = [
-  function orientation0() { return 0 },
-  function orientation1() { return 0 },
-  function orientation2(a, b) { 
-    return b[0] - a[0]
-  },
-  function orientation3(a, b, c) {
-    var l = (a[1] - c[1]) * (b[0] - c[0])
-    var r = (a[0] - c[0]) * (b[1] - c[1])
-    var det = l - r
-    var s
-    if(l > 0) {
-      if(r <= 0) {
-        return det
-      } else {
-        s = l + r
-      }
-    } else if(l < 0) {
-      if(r >= 0) {
-        return det
-      } else {
-        s = -(l + r)
-      }
-    } else {
-      return det
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
+            }
+        }
+        queueIndex = -1;
+        len = queue.length;
     }
-    var tol = ERRBOUND3 * s
-    if(det >= tol || det <= -tol) {
-      return det
-    }
-    return orientation3Exact(a, b, c)
-  },
-  function orientation4(a,b,c,d) {
-    var adx = a[0] - d[0]
-    var bdx = b[0] - d[0]
-    var cdx = c[0] - d[0]
-    var ady = a[1] - d[1]
-    var bdy = b[1] - d[1]
-    var cdy = c[1] - d[1]
-    var adz = a[2] - d[2]
-    var bdz = b[2] - d[2]
-    var cdz = c[2] - d[2]
-    var bdxcdy = bdx * cdy
-    var cdxbdy = cdx * bdy
-    var cdxady = cdx * ady
-    var adxcdy = adx * cdy
-    var adxbdy = adx * bdy
-    var bdxady = bdx * ady
-    var det = adz * (bdxcdy - cdxbdy) 
-            + bdz * (cdxady - adxcdy)
-            + cdz * (adxbdy - bdxady)
-    var permanent = (Math.abs(bdxcdy) + Math.abs(cdxbdy)) * Math.abs(adz)
-                  + (Math.abs(cdxady) + Math.abs(adxcdy)) * Math.abs(bdz)
-                  + (Math.abs(adxbdy) + Math.abs(bdxady)) * Math.abs(cdz)
-    var tol = ERRBOUND4 * permanent
-    if ((det > tol) || (-det > tol)) {
-      return det
-    }
-    return orientation4Exact(a,b,c,d)
-  }
-]
-
-function slowOrient(args) {
-  var proc = CACHED[args.length]
-  if(!proc) {
-    proc = CACHED[args.length] = orientation(args.length)
-  }
-  return proc.apply(undefined, args)
+    currentQueue = null;
+    draining = false;
+    runClearTimeout(timeout);
 }
 
-function generateOrientationProc() {
-  while(CACHED.length <= NUM_EXPAND) {
-    CACHED.push(orientation(CACHED.length))
-  }
-  var args = []
-  var procArgs = ["slow"]
-  for(var i=0; i<=NUM_EXPAND; ++i) {
-    args.push("a" + i)
-    procArgs.push("o" + i)
-  }
-  var code = [
-    "function getOrientation(", args.join(), "){switch(arguments.length){case 0:case 1:return 0;"
-  ]
-  for(var i=2; i<=NUM_EXPAND; ++i) {
-    code.push("case ", i, ":return o", i, "(", args.slice(0, i).join(), ");")
-  }
-  code.push("}var s=new Array(arguments.length);for(var i=0;i<arguments.length;++i){s[i]=arguments[i]};return slow(s);}return getOrientation")
-  procArgs.push(code.join(""))
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        runTimeout(drainQueue);
+    }
+};
 
-  var proc = Function.apply(undefined, procArgs)
-  module.exports = proc.apply(undefined, [slowOrient].concat(CACHED))
-  for(var i=0; i<=NUM_EXPAND; ++i) {
-    module.exports[i] = CACHED[i]
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+},{}],206:[function(require,module,exports){
+module.exports = require('gl-quat/slerp')
+},{"gl-quat/slerp":128}],207:[function(require,module,exports){
+'use strict'
+
+var bnadd = require('big-rat/add')
+
+module.exports = add
+
+function add(a, b) {
+  var n = a.length
+  var r = new Array(n)
+    for(var i=0; i<n; ++i) {
+    r[i] = bnadd(a[i], b[i])
   }
+  return r
 }
 
 generateOrientationProc()
@@ -41565,53 +41826,16 @@ function robustProduct(a, b) {
 },{"robust-scale":230,"robust-sum":233}],230:[function(require,module,exports){
 "use strict"
 
-var twoProduct = require("two-product")
-var twoSum = require("two-sum")
+module.exports = float2rat
 
-module.exports = scaleLinearExpansion
+var rat = require('big-rat')
 
-function scaleLinearExpansion(e, scale) {
-  var n = e.length
-  if(n === 1) {
-    var ts = twoProduct(e[0], scale)
-    if(ts[0]) {
-      return ts
-    }
-    return [ ts[1] ]
+function float2rat(v) {
+  var result = new Array(v.length)
+  for(var i=0; i<v.length; ++i) {
+    result[i] = rat(v[i])
   }
-  var g = new Array(2 * n)
-  var q = [0.1, 0.1]
-  var t = [0.1, 0.1]
-  var count = 0
-  twoProduct(e[0], scale, q)
-  if(q[0]) {
-    g[count++] = q[0]
-  }
-  for(var i=1; i<n; ++i) {
-    twoProduct(e[i], scale, t)
-    var pq = q[1]
-    twoSum(pq, t[0], q)
-    if(q[0]) {
-      g[count++] = q[0]
-    }
-    var a = t[1]
-    var b = q[1]
-    var x = a + b
-    var bv = x - a
-    var y = b - bv
-    q[1] = x
-    if(y) {
-      g[count++] = y
-    }
-  }
-  if(q[1]) {
-    g[count++] = q[1]
-  }
-  if(count === 0) {
-    g[count++] = 0.0
-  }
-  g.length = count
-  return g
+  return result
 }
 },{"two-product":253,"two-sum":254}],231:[function(require,module,exports){
 "use strict"
@@ -41664,156 +41888,127 @@ function segmentsIntersect(a0, a1, b0, b1) {
 },{"robust-orientation":228}],232:[function(require,module,exports){
 "use strict"
 
-module.exports = robustSubtract
+},{"big-rat":21}],209:[function(require,module,exports){
+'use strict'
 
-//Easy case: Add two scalars
-function scalarScalar(a, b) {
-  var x = a + b
-  var bv = x - a
-  var av = x - bv
-  var br = b - bv
-  var ar = a - av
-  var y = ar + br
-  if(y) {
-    return [y, x]
+var rat = require('big-rat')
+var mul = require('big-rat/mul')
+
+module.exports = muls
+
+function muls(a, x) {
+  var s = rat(x)
+  var n = a.length
+  var r = new Array(n)
+  for(var i=0; i<n; ++i) {
+    r[i] = mul(a[i], s)
   }
-  return [x]
+  return r
 }
 
-function robustSubtract(e, f) {
-  var ne = e.length|0
-  var nf = f.length|0
-  if(ne === 1 && nf === 1) {
-    return scalarScalar(e[0], -f[0])
+},{"big-rat":21,"big-rat/mul":30}],210:[function(require,module,exports){
+'use strict'
+
+var bnsub = require('big-rat/sub')
+
+module.exports = sub
+
+function sub(a, b) {
+  var n = a.length
+  var r = new Array(n)
+    for(var i=0; i<n; ++i) {
+    r[i] = bnsub(a[i], b[i])
   }
-  var n = ne + nf
-  var g = new Array(n)
-  var count = 0
-  var eptr = 0
-  var fptr = 0
-  var abs = Math.abs
-  var ei = e[eptr]
-  var ea = abs(ei)
-  var fi = -f[fptr]
-  var fa = abs(fi)
-  var a, b
-  if(ea < fa) {
-    b = ei
-    eptr += 1
-    if(eptr < ne) {
-      ei = e[eptr]
-      ea = abs(ei)
+  return r
+}
+
+},{"big-rat/sub":32}],211:[function(require,module,exports){
+'use strict'
+
+var compareCell = require('compare-cell')
+var compareOrientedCell = require('compare-oriented-cell')
+var orientation = require('cell-orientation')
+
+module.exports = reduceCellComplex
+
+function reduceCellComplex(cells) {
+  cells.sort(compareOrientedCell)
+  var n = cells.length
+  var ptr = 0
+  for(var i=0; i<n; ++i) {
+    var c = cells[i]
+    var o = orientation(c)
+    if(o === 0) {
+      continue
     }
-  } else {
-    b = fi
-    fptr += 1
-    if(fptr < nf) {
-      fi = -f[fptr]
-      fa = abs(fi)
-    }
-  }
-  if((eptr < ne && ea < fa) || (fptr >= nf)) {
-    a = ei
-    eptr += 1
-    if(eptr < ne) {
-      ei = e[eptr]
-      ea = abs(ei)
-    }
-  } else {
-    a = fi
-    fptr += 1
-    if(fptr < nf) {
-      fi = -f[fptr]
-      fa = abs(fi)
-    }
-  }
-  var x = a + b
-  var bv = x - a
-  var y = b - bv
-  var q0 = y
-  var q1 = x
-  var _x, _bv, _av, _br, _ar
-  while(eptr < ne && fptr < nf) {
-    if(ea < fa) {
-      a = ei
-      eptr += 1
-      if(eptr < ne) {
-        ei = e[eptr]
-        ea = abs(ei)
-      }
-    } else {
-      a = fi
-      fptr += 1
-      if(fptr < nf) {
-        fi = -f[fptr]
-        fa = abs(fi)
+    if(ptr > 0) {
+      var f = cells[ptr-1]
+      if(compareCell(c, f) === 0 &&
+         orientation(f)    !== o) {
+        ptr -= 1
+        continue
       }
     }
-    b = q0
-    x = a + b
-    bv = x - a
-    y = b - bv
-    if(y) {
-      g[count++] = y
-    }
-    _x = q1 + x
-    _bv = _x - q1
-    _av = _x - _bv
-    _br = x - _bv
-    _ar = q1 - _av
-    q0 = _ar + _br
-    q1 = _x
+    cells[ptr++] = c
   }
-  while(eptr < ne) {
-    a = ei
-    b = q0
-    x = a + b
-    bv = x - a
-    y = b - bv
-    if(y) {
-      g[count++] = y
-    }
-    _x = q1 + x
-    _bv = _x - q1
-    _av = _x - _bv
-    _br = x - _bv
-    _ar = q1 - _av
-    q0 = _ar + _br
-    q1 = _x
-    eptr += 1
-    if(eptr < ne) {
-      ei = e[eptr]
-    }
+  cells.length = ptr
+  return cells
+}
+
+},{"cell-orientation":54,"compare-cell":63,"compare-oriented-cell":64}],212:[function(require,module,exports){
+/*!
+ * repeat-string <https://github.com/jonschlinkert/repeat-string>
+ *
+ * Copyright (c) 2014-2015, Jon Schlinkert.
+ * Licensed under the MIT License.
+ */
+
+'use strict';
+
+/**
+ * Results cache
+ */
+
+var res = '';
+var cache;
+
+/**
+ * Expose `repeat`
+ */
+
+module.exports = repeat;
+
+/**
+ * Repeat the given `string` the specified `number`
+ * of times.
+ *
+ * **Example:**
+ *
+ * ```js
+ * var repeat = require('repeat-string');
+ * repeat('A', 5);
+ * //=> AAAAA
+ * ```
+ *
+ * @param {String} `string` The string to repeat
+ * @param {Number} `number` The number of times to repeat the string
+ * @return {String} Repeated string
+ * @api public
+ */
+
+function repeat(str, num) {
+  if (typeof str !== 'string') {
+    throw new TypeError('repeat-string expects a string.');
   }
-  while(fptr < nf) {
-    a = fi
-    b = q0
-    x = a + b
-    bv = x - a
-    y = b - bv
-    if(y) {
-      g[count++] = y
-    } 
-    _x = q1 + x
-    _bv = _x - q1
-    _av = _x - _bv
-    _br = x - _bv
-    _ar = q1 - _av
-    q0 = _ar + _br
-    q1 = _x
-    fptr += 1
-    if(fptr < nf) {
-      fi = -f[fptr]
-    }
-  }
-  if(q0) {
-    g[count++] = q0
-  }
-  if(q1) {
-    g[count++] = q1
-  }
-  if(!count) {
-    g[count++] = 0.0  
+
+  // cover common, quick use cases
+  if (num === 1) return str;
+  if (num === 2) return str + str;
+
+  var max = str.length * num;
+  if (cache !== str || typeof cache === 'undefined') {
+    cache = str;
+    res = '';
   }
   g.length = count
   return g
@@ -41821,125 +42016,85 @@ function robustSubtract(e, f) {
 },{}],233:[function(require,module,exports){
 "use strict"
 
-module.exports = linearExpansionSum
+  while (max > res.length && num > 0) {
+    if (num & 1) {
+      res += str;
+    }
 
-//Easy case: Add two scalars
-function scalarScalar(a, b) {
-  var x = a + b
-  var bv = x - a
-  var av = x - bv
-  var br = b - bv
-  var ar = a - av
-  var y = ar + br
-  if(y) {
-    return [y, x]
+    num >>= 1;
+    if (!num) break;
+    str += str;
   }
-  return [x]
+
+  return res.substr(0, max);
 }
 
-function linearExpansionSum(e, f) {
-  var ne = e.length|0
-  var nf = f.length|0
-  if(ne === 1 && nf === 1) {
-    return scalarScalar(e[0], f[0])
+
+},{}],213:[function(require,module,exports){
+(function (global){
+module.exports =
+  global.performance &&
+  global.performance.now ? function now() {
+    return performance.now()
+  } : Date.now || function now() {
+    return +new Date
   }
-  var n = ne + nf
-  var g = new Array(n)
-  var count = 0
-  var eptr = 0
-  var fptr = 0
-  var abs = Math.abs
-  var ei = e[eptr]
-  var ea = abs(ei)
-  var fi = f[fptr]
-  var fa = abs(fi)
-  var a, b
-  if(ea < fa) {
-    b = ei
-    eptr += 1
-    if(eptr < ne) {
-      ei = e[eptr]
-      ea = abs(ei)
-    }
-  } else {
-    b = fi
-    fptr += 1
-    if(fptr < nf) {
-      fi = f[fptr]
-      fa = abs(fi)
-    }
-  }
-  if((eptr < ne && ea < fa) || (fptr >= nf)) {
-    a = ei
-    eptr += 1
-    if(eptr < ne) {
-      ei = e[eptr]
-      ea = abs(ei)
-    }
-  } else {
-    a = fi
-    fptr += 1
-    if(fptr < nf) {
-      fi = f[fptr]
-      fa = abs(fi)
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],214:[function(require,module,exports){
+"use strict"
+
+module.exports = compressExpansion
+
+function compressExpansion(e) {
+  var m = e.length
+  var Q = e[e.length-1]
+  var bottom = m
+  for(var i=m-2; i>=0; --i) {
+    var a = Q
+    var b = e[i]
+    Q = a + b
+    var bv = Q - a
+    var q = b - bv
+    if(q) {
+      e[--bottom] = Q
+      Q = q
     }
   }
-  var x = a + b
-  var bv = x - a
-  var y = b - bv
-  var q0 = y
-  var q1 = x
-  var _x, _bv, _av, _br, _ar
-  while(eptr < ne && fptr < nf) {
-    if(ea < fa) {
-      a = ei
-      eptr += 1
-      if(eptr < ne) {
-        ei = e[eptr]
-        ea = abs(ei)
+  var top = 0
+  for(var i=bottom; i<m; ++i) {
+    var a = e[i]
+    var b = Q
+    Q = a + b
+    var bv = Q - a
+    var q = b - bv
+    if(q) {
+      e[top++] = q
+    }
+  }
+  e[top++] = Q
+  e.length = top
+  return e
+}
+},{}],215:[function(require,module,exports){
+"use strict"
+
+var twoProduct = require("two-product")
+var robustSum = require("robust-sum")
+var robustScale = require("robust-scale")
+var compress = require("robust-compress")
+
+var NUM_EXPANDED = 6
+
+function cofactor(m, c) {
+  var result = new Array(m.length-1)
+  for(var i=1; i<m.length; ++i) {
+    var r = result[i-1] = new Array(m.length-1)
+    for(var j=0,k=0; j<m.length; ++j) {
+      if(j === c) {
+        continue
       }
-    } else {
-      a = fi
-      fptr += 1
-      if(fptr < nf) {
-        fi = f[fptr]
-        fa = abs(fi)
-      }
-    }
-    b = q0
-    x = a + b
-    bv = x - a
-    y = b - bv
-    if(y) {
-      g[count++] = y
-    }
-    _x = q1 + x
-    _bv = _x - q1
-    _av = _x - _bv
-    _br = x - _bv
-    _ar = q1 - _av
-    q0 = _ar + _br
-    q1 = _x
-  }
-  while(eptr < ne) {
-    a = ei
-    b = q0
-    x = a + b
-    bv = x - a
-    y = b - bv
-    if(y) {
-      g[count++] = y
-    }
-    _x = q1 + x
-    _bv = _x - q1
-    _av = _x - _bv
-    _br = x - _bv
-    _ar = q1 - _av
-    q0 = _ar + _br
-    q1 = _x
-    eptr += 1
-    if(eptr < ne) {
-      ei = e[eptr]
+      r[k++] = m[i][j]
     }
   }
   while(fptr < nf) {
@@ -42128,6 +42283,8 @@ function extractContour(cells, values, level, d) {
       vertexWeights: []
     }
   }
+  code.push("}var s=new Array(arguments.length);for(var i=0;i<arguments.length;++i){s[i]=arguments[i]};return slow(s);}return getOrientation")
+  procArgs.push(code.join(""))
 
   //Read in vertex signs
   var vertexSigns = getSigns(values, +level)
@@ -42444,6 +42601,7 @@ function incidence(from_cells, to_cells) {
           break
         }
       }
+      result[2*lastV] = i
     }
   }
   return index
@@ -43090,6 +43248,8 @@ function searchBucket(root, p) {
   }
   return lastNode
 }
+},{"robust-orientation":219,"simplicial-complex":231}],234:[function(require,module,exports){
+"use strict"
 
 proto.castUp = function(p) {
   var bucket = bounds.le(this.coordinates, p[0])
@@ -43527,6 +43687,68 @@ function negative(points, plane) {
         _argv.splice(0, 0, fmt)
         return sprintf.apply(null, _argv)
     }
+    d = a.create - b.create
+    if(d) {
+      return d
+    }
+    return Math.min(a.segment[0][1], a.segment[1][1]) - Math.min(b.segment[0][1], b.segment[1][1])
+  })
+  var tree = createRBTree(orderSegments)
+  var slabs = []
+  var lines = []
+  var horizontal = []
+  var lastX = -Infinity
+  for(var i=0; i<numEvents; ) {
+    var x = events[i].x
+    var horiz = []
+    while(i < numEvents) {
+      var e = events[i]
+      if(e.x !== x) {
+        break
+      }
+      i += 1
+      if(e.segment[0][0] === e.x && e.segment[1][0] === e.x) {
+        if(e.create) {
+          if(e.segment[0][1] < e.segment[1][1]) {
+            horiz.push(new IntervalSegment(
+                e.segment[0][1],
+                e.index,
+                true,
+                true))
+            horiz.push(new IntervalSegment(
+                e.segment[1][1],
+                e.index,
+                false,
+                false))
+          } else {
+            horiz.push(new IntervalSegment(
+                e.segment[1][1],
+                e.index,
+                true,
+                false))
+            horiz.push(new IntervalSegment(
+                e.segment[0][1],
+                e.index,
+                false,
+                true))
+          }
+        }
+      } else {
+        if(e.create) {
+          tree = tree.insert(e.segment, e.index)
+        } else {
+          tree = tree.remove(e.segment)
+        }
+      }
+    }
+    slabs.push(tree.root)
+    lines.push(x)
+    horizontal.push(horiz)
+  }
+  return new SlabDecomposition(slabs, lines, horizontal)
+}
+},{"./lib/order-segments":234,"binary-search-bounds":34,"functional-red-black-tree":84,"robust-orientation":219}],236:[function(require,module,exports){
+"use strict"
 
     /**
      * helpers
@@ -45034,6 +45256,8 @@ function getPropertyInPX(element, prop) {
   var parts = parseUnit(getComputedStyle(element).getPropertyValue(prop))
   return parts[0] * toPX(parts[1], element)
 }
+},{"parse-unit":197}],242:[function(require,module,exports){
+"use strict"
 
 //This brutal hack is needed
 function getSizeBrutal(unit, element) {
@@ -45444,6 +45668,17 @@ proto.setMatrix = function(t, mat, axes, noSnap) {
       uy = (uy < 0) ? -1 : 1
       ux = uz = 0
     }
+    theta = Math.atan2(cf, cr)
+  } else {
+    var tx = mat[2]
+    var ty = mat[6]
+    var tz = mat[10]
+    var tu = tx * ux + ty * uy + tz * uz
+    var tr = tx * rx + ty * ry + tz * rz
+    var tf = tx * fx + ty * fy + tz * fz
+
+    phi = Math.asin(clamp1(tu))
+    theta = Math.atan2(tf, tr)
   }
 
   var rx = mat[vshift]
@@ -45538,12 +45773,16 @@ proto.flush = function(t) {
   this.radius.flush(t)
   this.angle.flush(t)
 }
+},{"filtered-vector":83,"gl-mat4/invert":111,"gl-mat4/rotate":115,"gl-vec3/cross":149,"gl-vec3/dot":150,"gl-vec3/normalize":153}],244:[function(require,module,exports){
+"use strict"
 
 proto.setDistance = function(t, d) {
   if(d > 0) {
     this.radius.set(t, Math.log(d))
   }
 }
+},{}],245:[function(require,module,exports){
+"use strict"
 
 proto.lookAt = function(t, eye, center, up) {
   this.recalcMatrix(t)
@@ -45720,6 +45959,10 @@ function twoProduct(a, b, result) {
     result[1] = x
     return result
   }
+  var n = buffer.length || buffer.byteLength
+  var log_n = bits.log2(n)
+  DATA[log_n].push(buffer)
+}
 
   return [ y, x ]
 }
@@ -54041,6 +54284,9 @@ function expandHorizontalMargin(gd) {
     else if(anchorUtils.isCenterAnchor(opts)) {
         xanchor = 'center';
     }
+    else if(isGrouped) {
+        opts.width = 0;
+        opts.height = 0;
 
     // lastly check if the margin auto-expand has changed
     Plots.autoMargin(gd, 'legend', {
@@ -54062,8 +54308,10 @@ function expandHorizontalMargin(gd) {
 * LICENSE file in the root directory of this source tree.
 */
 
+            opts.width += opts.tracegroupgap + groupWidth;
 
-'use strict';
+            groupXOffsets.push(opts.width);
+        }
 
 var Registry = require('../../registry');
 var helpers = require('./helpers');
@@ -54094,6 +54342,13 @@ module.exports = function getLegendData(calcdata, opts) {
         }
         else lgroupToTraces[legendGroup].push([legendItem]);
     }
+    else {
+        opts.width = 0;
+        opts.height = 0;
+        var rowHeight = 0,
+            maxTraceHeight = 0,
+            maxTraceWidth = 0,
+            offsetX = 0;
 
     // build an { legendgroup: [cd0, cd0], ... } object
     for(i = 0; i < calcdata.length; i++) {
@@ -54972,8 +55227,14 @@ modeBarButtons.resetViews = {
 * LICENSE file in the root directory of this source tree.
 */
 
+function toggleHover(gd) {
+    var fullLayout = gd._fullLayout;
 
-'use strict';
+    var onHoverVal;
+    if(fullLayout._has('cartesian')) {
+        onHoverVal = fullLayout._isHoriz ? 'y' : 'x';
+    }
+    else onHoverVal = 'closest';
 
 exports.manage = require('./manage');
 
@@ -56349,6 +56610,7 @@ var dragElement = require('../dragelement');
 var setCursor = require('../../lib/setcursor');
 
 var constants = require('./constants');
+var rangePlot = require('./range_plot');
 
 
 module.exports = function(gd) {
@@ -57188,6 +57450,10 @@ var setCursor = require('../../lib/setcursor');
 var constants = require('./constants');
 var helpers = require('./helpers');
 
+    // (from annos...) not sure how we're getting here... but C12 is seeing a bug
+    // where we fail here when they add/remove annotations
+    // TODO: clean this up and remove it.
+    if(!optionsIn) return;
 
 // Shapes are stored in gd.layout.shapes, an array of objects
 // index can point to one item in this array,
@@ -57862,7 +58128,8 @@ module.exports = {
         dflt: 'top',
         
         
-    },
+    }
+};
 
     transition: {
         duration: {
@@ -57941,6 +58208,7 @@ module.exports = {
         valType: 'color',
         dflt: constants.railBorderColor,
         
+        dflt: 'fraction',
         
     },
     borderwidth: {
@@ -57961,6 +58229,11 @@ module.exports = {
         valType: 'color',
         dflt: constants.tickColor,
         
+    }),
+    xanchor: {
+        valType: 'enumerated',
+        values: ['auto', 'left', 'center', 'right'],
+        dflt: 'left',
         
     },
     tickwidth: {
@@ -58198,7 +58471,6 @@ function stepsDefaults(sliderIn, sliderOut) {
 * LICENSE file in the root directory of this source tree.
 */
 
-
 'use strict';
 
 var d3 = require('d3');
@@ -58209,6 +58481,7 @@ var Drawing = require('../drawing');
 var svgTextUtils = require('../../lib/svg_text_utils');
 var anchorUtils = require('../legend/anchor_utils');
 
+var attributes = require('./attributes');
 var constants = require('./constants');
 
 
@@ -60861,6 +61134,10 @@ var nestedProperty = require('./nested_property');
 
 var ID_REGEX = /^([2-9]|[1-9][0-9]+)$/;
 
+function isValObject(obj) {
+    return obj && obj.valType !== undefined;
+}
+
 exports.valObjects = {
     data_array: {
         // You can use *dflt=[] to force said array to exist though.
@@ -62343,6 +62620,13 @@ lib.coerce = coerceModule.coerce;
 lib.coerce2 = coerceModule.coerce2;
 lib.coerceFont = coerceModule.coerceFont;
 lib.validate = coerceModule.validate;
+lib.isValObject = coerceModule.isValObject;
+lib.crawl = coerceModule.crawl;
+lib.findArrayAttributes = coerceModule.findArrayAttributes;
+lib.IS_SUBPLOT_OBJ = coerceModule.IS_SUBPLOT_OBJ;
+lib.IS_LINKED_TO_ARRAY = coerceModule.IS_LINKED_TO_ARRAY;
+lib.DEPRECATED = coerceModule.DEPRECATED;
+lib.UNDERSCORE_ATTRS = coerceModule.UNDERSCORE_ATTRS;
 
 var datesModule = require('./dates');
 lib.dateTime2ms = datesModule.dateTime2ms;
@@ -66072,6 +66356,7 @@ Plotly.plot = function(gd, data, layout, config) {
         Registry.getComponentMethod('rangeselector', 'draw')(gd);
         Registry.getComponentMethod('sliders', 'draw')(gd);
         Registry.getComponentMethod('updatemenus', 'draw')(gd);
+        Registry.getComponentMethod('sliders', 'draw')(gd);
 
         for(i = 0; i < calcdata.length; i++) {
             cd = calcdata[i];
@@ -66218,6 +66503,7 @@ Plotly.plot = function(gd, data, layout, config) {
         Registry.getComponentMethod('rangeselector', 'draw')(gd);
         Registry.getComponentMethod('sliders', 'draw')(gd);
         Registry.getComponentMethod('updatemenus', 'draw')(gd);
+        Registry.getComponentMethod('sliders', 'draw')(gd);
     }
 
     var seq = [
@@ -75739,6 +76025,55 @@ exports.clean = function(newFullData, newFullLayout, oldFullData, oldFullLayout)
             oldFullLayout._infolayer.select('.' + axIds[i] + 'title').remove();
         }
     }
+
+    var hadCartesian = (oldFullLayout._has && oldFullLayout._has('cartesian'));
+    var hasCartesian = (newFullLayout._has && newFullLayout._has('cartesian'));
+
+    if(hadCartesian && !hasCartesian) {
+        var subplotLayers = oldFullLayout._cartesianlayer.selectAll('.subplot');
+
+        subplotLayers.call(purgeSubplotLayers, oldFullLayout);
+        oldFullLayout._defs.selectAll('.axesclip').remove();
+    }
+};
+
+exports.drawFramework = function(gd) {
+    var fullLayout = gd._fullLayout,
+        subplotData = makeSubplotData(gd);
+
+    var subplotLayers = fullLayout._cartesianlayer.selectAll('.subplot')
+        .data(subplotData, Lib.identity);
+
+    subplotLayers.enter().append('g')
+        .attr('class', function(name) { return 'subplot ' + name; });
+
+    subplotLayers.order();
+
+    subplotLayers.exit()
+        .call(purgeSubplotLayers, fullLayout);
+
+    subplotLayers.each(function(name) {
+        var plotinfo = fullLayout._plots[name];
+
+        // keep ref to plot group
+        plotinfo.plotgroup = d3.select(this);
+
+        // initialize list of overlay subplots
+        plotinfo.overlays = [];
+
+        makeSubplotLayer(plotinfo);
+
+        // fill in list of overlay subplots
+        if(plotinfo.mainplot) {
+            var mainplot = fullLayout._plots[plotinfo.mainplot];
+            mainplot.overlays.push(plotinfo);
+        }
+
+        // make separate drag layers for each subplot,
+        // but append them to paper rather than the plot groups,
+        // so they end up on top of the rest
+        plotinfo.draglayer = joinLayer(fullLayout._draggers, 'g', name);
+    });
 };
 
 exports.drawFramework = function(gd) {
@@ -80835,6 +81170,9 @@ plots.supplyDefaults = function(gd) {
         var ax = axList[i];
         ax.setScale();
     }
+
+    // relink / initialize subplot axis objects
+    plots.linkSubplots(newFullData, newFullLayout, oldFullData, oldFullLayout);
 
     // update object references in calcdata
     if((gd.calcdata || []).length === newFullData.length) {

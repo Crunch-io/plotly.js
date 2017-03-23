@@ -26422,6 +26422,10 @@ var nestedProperty = require('./nested_property');
 
 var ID_REGEX = /^([2-9]|[1-9][0-9]+)$/;
 
+function isValObject(obj) {
+    return obj && obj.valType !== undefined;
+}
+
 exports.valObjects = {
     data_array: {
         // You can use *dflt=[] to force said array to exist though.
@@ -27747,6 +27751,13 @@ lib.coerce = coerceModule.coerce;
 lib.coerce2 = coerceModule.coerce2;
 lib.coerceFont = coerceModule.coerceFont;
 lib.validate = coerceModule.validate;
+lib.isValObject = coerceModule.isValObject;
+lib.crawl = coerceModule.crawl;
+lib.findArrayAttributes = coerceModule.findArrayAttributes;
+lib.IS_SUBPLOT_OBJ = coerceModule.IS_SUBPLOT_OBJ;
+lib.IS_LINKED_TO_ARRAY = coerceModule.IS_LINKED_TO_ARRAY;
+lib.DEPRECATED = coerceModule.DEPRECATED;
+lib.UNDERSCORE_ATTRS = coerceModule.UNDERSCORE_ATTRS;
 
 var datesModule = require('./dates');
 lib.dateTime2ms = datesModule.dateTime2ms;
@@ -31406,6 +31417,7 @@ Plotly.plot = function(gd, data, layout, config) {
         Registry.getComponentMethod('rangeselector', 'draw')(gd);
         Registry.getComponentMethod('sliders', 'draw')(gd);
         Registry.getComponentMethod('updatemenus', 'draw')(gd);
+        Registry.getComponentMethod('sliders', 'draw')(gd);
 
         for(i = 0; i < calcdata.length; i++) {
             cd = calcdata[i];
@@ -31552,6 +31564,7 @@ Plotly.plot = function(gd, data, layout, config) {
         Registry.getComponentMethod('rangeselector', 'draw')(gd);
         Registry.getComponentMethod('sliders', 'draw')(gd);
         Registry.getComponentMethod('updatemenus', 'draw')(gd);
+        Registry.getComponentMethod('sliders', 'draw')(gd);
     }
 
     var seq = [
@@ -41073,6 +41086,55 @@ exports.clean = function(newFullData, newFullLayout, oldFullData, oldFullLayout)
             oldFullLayout._infolayer.select('.' + axIds[i] + 'title').remove();
         }
     }
+
+    var hadCartesian = (oldFullLayout._has && oldFullLayout._has('cartesian'));
+    var hasCartesian = (newFullLayout._has && newFullLayout._has('cartesian'));
+
+    if(hadCartesian && !hasCartesian) {
+        var subplotLayers = oldFullLayout._cartesianlayer.selectAll('.subplot');
+
+        subplotLayers.call(purgeSubplotLayers, oldFullLayout);
+        oldFullLayout._defs.selectAll('.axesclip').remove();
+    }
+};
+
+exports.drawFramework = function(gd) {
+    var fullLayout = gd._fullLayout,
+        subplotData = makeSubplotData(gd);
+
+    var subplotLayers = fullLayout._cartesianlayer.selectAll('.subplot')
+        .data(subplotData, Lib.identity);
+
+    subplotLayers.enter().append('g')
+        .attr('class', function(name) { return 'subplot ' + name; });
+
+    subplotLayers.order();
+
+    subplotLayers.exit()
+        .call(purgeSubplotLayers, fullLayout);
+
+    subplotLayers.each(function(name) {
+        var plotinfo = fullLayout._plots[name];
+
+        // keep ref to plot group
+        plotinfo.plotgroup = d3.select(this);
+
+        // initialize list of overlay subplots
+        plotinfo.overlays = [];
+
+        makeSubplotLayer(plotinfo);
+
+        // fill in list of overlay subplots
+        if(plotinfo.mainplot) {
+            var mainplot = fullLayout._plots[plotinfo.mainplot];
+            mainplot.overlays.push(plotinfo);
+        }
+
+        // make separate drag layers for each subplot,
+        // but append them to paper rather than the plot groups,
+        // so they end up on top of the rest
+        plotinfo.draglayer = joinLayer(fullLayout._draggers, 'g', name);
+    });
 };
 
 exports.drawFramework = function(gd) {
@@ -44321,6 +44383,9 @@ plots.supplyDefaults = function(gd) {
         var ax = axList[i];
         ax.setScale();
     }
+
+    // relink / initialize subplot axis objects
+    plots.linkSubplots(newFullData, newFullLayout, oldFullData, oldFullLayout);
 
     // update object references in calcdata
     if((gd.calcdata || []).length === newFullData.length) {
