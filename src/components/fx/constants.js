@@ -22,8 +22,8 @@ module.exports = {
     // pixels padding around text
     HOVERTEXTPAD: 3,
     // hover font
-    HOVERFONTSIZE: 13,
-    HOVERFONT: 'Arial, sans-serif',
+    HOVERFONTSIZE: 12,
+    HOVERFONT: 'ProximaNova', 'Arial, sans-serif',
 
     // minimum time (msec) between hover calls
     HOVERMINTIME: 50
