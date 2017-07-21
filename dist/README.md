@@ -50,7 +50,7 @@ The main plotly.js bundle weights in at:
 
 | plotly.js | plotly.min.js | plotly.min.js + gzip | plotly-with-meta.js |
 |-----------|---------------|----------------------|---------------------|
-| 5.4 MB | 2.2 MB | 668.9 kB | 5.6 MB |
+| 5.4 MB | 2.2 MB | 668.1 kB | 5.6 MB |
 
 ## Partial bundles
 
@@ -80,7 +80,7 @@ The `basic` partial bundle contains the `scatter`, `bar` and `pie` trace modules
 
 | Raw size | Minified size | Minified + gzip size |
 |------|-----------------|------------------------|
-| 1.8 MB | 672.6 kB | 218.8 kB |
+| 1.8 MB | 672.7 kB | 218.8 kB |
 
 ### plotly.js cartesian
 
@@ -98,7 +98,7 @@ The `cartesian` partial bundle contains the `scatter`, `bar`, `box`, `heatmap`, 
 
 | Raw size | Minified size | Minified + gzip size |
 |------|-----------------|------------------------|
-| 2 MB | 754.2 kB | 243.7 kB |
+| 2 MB | 754.3 kB | 243.7 kB |
 
 ### plotly.js geo
 
@@ -116,7 +116,7 @@ The `geo` partial bundle contains the `scatter`, `scattergeo` and `choropleth` t
 
 | Raw size | Minified size | Minified + gzip size |
 |------|-----------------|------------------------|
-| 1.8 MB | 695.4 kB | 227.2 kB |
+| 1.8 MB | 695.4 kB | 227.3 kB |
 
 ### plotly.js gl3d
 
@@ -134,7 +134,7 @@ The `gl3d` partial bundle contains the `scatter`, `scatter3d`, `surface` and `me
 
 | Raw size | Minified size | Minified + gzip size |
 |------|-----------------|------------------------|
-| 2.7 MB | 1.1 MB | 357.1 kB |
+| 2.7 MB | 1.1 MB | 357.2 kB |
 
 ### plotly.js gl2d
 
@@ -152,7 +152,7 @@ The `gl2d` partial bundle contains the `scatter`, `scattergl`, `pointcloud`, `he
 
 | Raw size | Minified size | Minified + gzip size |
 |------|-----------------|------------------------|
-| 2.8 MB | 1.1 MB | 366.4 kB |
+| 2.8 MB | 1.1 MB | 366.5 kB |
 
 ### plotly.js mapbox
 
@@ -170,7 +170,7 @@ The `mapbox` partial bundle contains the `scatter` and `scattermapbox` trace mod
 
 | Raw size | Minified size | Minified + gzip size |
 |------|-----------------|------------------------|
-| 2.8 MB | 1.1 MB | 332.4 kB |
+| 2.8 MB | 1.1 MB | 331.6 kB |
 
 ### plotly.js finance
 

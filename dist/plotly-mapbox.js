@@ -40375,52 +40375,29 @@ Feature.prototype = {
 
 },{}],185:[function(require,module,exports){
 module.exports={
-  "_args": [
-    [
-      {
-        "raw": "mapbox-gl@^0.22.0",
-        "scope": null,
-        "escapedName": "mapbox-gl",
-        "name": "mapbox-gl",
-        "rawSpec": "^0.22.0",
-        "spec": ">=0.22.0 <0.23.0",
-        "type": "range"
-      },
-      "/home/etienne/Documents/plotly/plotly.js"
-    ]
-  ],
-  "_from": "mapbox-gl@>=0.22.0 <0.23.0",
+  "_from": "mapbox-gl@^0.22.0",
   "_id": "mapbox-gl@0.22.1",
-  "_inCache": true,
+  "_inBundle": false,
+  "_integrity": "sha1-kqllVH1MLyTCLLxIfu2khpTLYno=",
   "_location": "/mapbox-gl",
-  "_nodeVersion": "4.4.5",
-  "_npmOperationalInternal": {
-    "host": "packages-12-west.internal.npmjs.com",
-    "tmp": "tmp/mapbox-gl-0.22.1.tgz_1471549891670_0.8762630566488951"
-  },
-  "_npmUser": {
-    "name": "lucaswoj",
-    "email": "lucas@lucaswoj.com"
-  },
-  "_npmVersion": "2.15.5",
   "_phantomChildren": {},
   "_requested": {
+    "type": "range",
+    "registry": true,
     "raw": "mapbox-gl@^0.22.0",
-    "scope": null,
-    "escapedName": "mapbox-gl",
     "name": "mapbox-gl",
+    "escapedName": "mapbox-gl",
     "rawSpec": "^0.22.0",
-    "spec": ">=0.22.0 <0.23.0",
-    "type": "range"
+    "saveSpec": null,
+    "fetchSpec": "^0.22.0"
   },
   "_requiredBy": [
     "/"
   ],
   "_resolved": "https://registry.npmjs.org/mapbox-gl/-/mapbox-gl-0.22.1.tgz",
   "_shasum": "92a965547d4c2f24c22cbc487eeda48694cb627a",
-  "_shrinkwrap": null,
   "_spec": "mapbox-gl@^0.22.0",
-  "_where": "/home/etienne/Documents/plotly/plotly.js",
+  "_where": "/Users/malecki/c/plotly.js",
   "browser": {
     "./js/util/ajax.js": "./js/util/browser/ajax.js",
     "./js/util/browser.js": "./js/util/browser/browser.js",
@@ -40431,6 +40408,7 @@ module.exports={
   "bugs": {
     "url": "https://github.com/mapbox/mapbox-gl-js/issues"
   },
+  "bundleDependencies": false,
   "dependencies": {
     "csscolorparser": "^1.0.2",
     "earcut": "^2.0.3",
@@ -40458,6 +40436,7 @@ module.exports={
     "webworkify": "^1.3.0",
     "whoots-js": "^2.0.0"
   },
+  "deprecated": false,
   "description": "A WebGL interactive maps library",
   "devDependencies": {
     "babel-preset-react": "^6.11.1",
@@ -40499,195 +40478,13 @@ module.exports={
     "webpack": "^1.13.1",
     "webworkify-webpack": "^1.1.3"
   },
-  "directories": {},
-  "dist": {
-    "shasum": "92a965547d4c2f24c22cbc487eeda48694cb627a",
-    "tarball": "https://registry.npmjs.org/mapbox-gl/-/mapbox-gl-0.22.1.tgz"
-  },
   "engines": {
     "node": ">=4.0.0"
   },
-  "gitHead": "13a9015341f0602ccb55c98c53079838ad4b70b5",
   "homepage": "https://github.com/mapbox/mapbox-gl-js#readme",
   "license": "BSD-3-Clause",
   "main": "js/mapbox-gl.js",
-  "maintainers": [
-    {
-      "name": "aaronlidman",
-      "email": "aaronlidman@gmail.com"
-    },
-    {
-      "name": "ajashton",
-      "email": "aj.ashton@gmail.com"
-    },
-    {
-      "name": "ansis",
-      "email": "ansis.brammanis@gmail.com"
-    },
-    {
-      "name": "bergwerkgis",
-      "email": "wb@bergwerk-gis.at"
-    },
-    {
-      "name": "bhousel",
-      "email": "bryan@mapbox.com"
-    },
-    {
-      "name": "bsudekum",
-      "email": "bobby@mapbox.com"
-    },
-    {
-      "name": "camilleanne",
-      "email": "camille@mapbox.com"
-    },
-    {
-      "name": "dnomadb",
-      "email": "damon@mapbox.com"
-    },
-    {
-      "name": "dthompson",
-      "email": "dthompson@gmail.com"
-    },
-    {
-      "name": "emilymcafee",
-      "email": "emily@mapbox.com"
-    },
-    {
-      "name": "flippmoke",
-      "email": "flippmoke@gmail.com"
-    },
-    {
-      "name": "freenerd",
-      "email": "spam@freenerd.de"
-    },
-    {
-      "name": "gretacb",
-      "email": "carol@mapbox.com"
-    },
-    {
-      "name": "ian29",
-      "email": "ian.villeda@gmail.com"
-    },
-    {
-      "name": "ianshward",
-      "email": "ian@mapbox.com"
-    },
-    {
-      "name": "ingalls",
-      "email": "nicholas.ingalls@gmail.com"
-    },
-    {
-      "name": "jfirebaugh",
-      "email": "john.firebaugh@gmail.com"
-    },
-    {
-      "name": "jrpruit1",
-      "email": "jake@jakepruitt.com"
-    },
-    {
-      "name": "karenzshea",
-      "email": "karen@mapbox.com"
-    },
-    {
-      "name": "kkaefer",
-      "email": "kkaefer@gmail.com"
-    },
-    {
-      "name": "lbud",
-      "email": "lauren@mapbox.com"
-    },
-    {
-      "name": "lucaswoj",
-      "email": "lucas@lucaswoj.com"
-    },
-    {
-      "name": "lxbarth",
-      "email": "alex@mapbox.com"
-    },
-    {
-      "name": "lyzidiamond",
-      "email": "lyzi@mapbox.com"
-    },
-    {
-      "name": "mapbox-admin",
-      "email": "accounts@mapbox.com"
-    },
-    {
-      "name": "mateov",
-      "email": "matt@mapbox.com"
-    },
-    {
-      "name": "mcwhittemore",
-      "email": "mcwhittemore@gmail.com"
-    },
-    {
-      "name": "miccolis",
-      "email": "jeff@miccolis.net"
-    },
-    {
-      "name": "mikemorris",
-      "email": "michael.patrick.morris@gmail.com"
-    },
-    {
-      "name": "morganherlocker",
-      "email": "morgan.herlocker@gmail.com"
-    },
-    {
-      "name": "mourner",
-      "email": "agafonkin@gmail.com"
-    },
-    {
-      "name": "nickidlugash",
-      "email": "nicki@mapbox.com"
-    },
-    {
-      "name": "rclark",
-      "email": "ryan.clark.j@gmail.com"
-    },
-    {
-      "name": "samanbb",
-      "email": "saman@mapbox.com"
-    },
-    {
-      "name": "sbma44",
-      "email": "tlee@mapbox.com"
-    },
-    {
-      "name": "scothis",
-      "email": "scothis@gmail.com"
-    },
-    {
-      "name": "sgillies",
-      "email": "sean@mapbox.com"
-    },
-    {
-      "name": "springmeyer",
-      "email": "dane@mapbox.com"
-    },
-    {
-      "name": "themarex",
-      "email": "patrick@mapbox.com"
-    },
-    {
-      "name": "tmcw",
-      "email": "tom@macwright.org"
-    },
-    {
-      "name": "tristen",
-      "email": "tristen.brown@gmail.com"
-    },
-    {
-      "name": "willwhite",
-      "email": "will@mapbox.com"
-    },
-    {
-      "name": "yhahn",
-      "email": "young@mapbox.com"
-    }
-  ],
   "name": "mapbox-gl",
-  "optionalDependencies": {},
-  "readme": "ERROR: No README data found!",
   "repository": {
     "type": "git",
     "url": "git://github.com/mapbox/mapbox-gl-js.git"
@@ -53169,8 +52966,8 @@ module.exports = {
     // pixels padding around text
     HOVERTEXTPAD: 3,
     // hover font
-    HOVERFONTSIZE: 13,
-    HOVERFONT: 'Arial, sans-serif',
+    HOVERFONTSIZE: 12,
+    HOVERFONT: 'ProximaNova, Arial, sans-serif',
 
     // minimum time (msec) between hover calls
     HOVERMINTIME: 50
